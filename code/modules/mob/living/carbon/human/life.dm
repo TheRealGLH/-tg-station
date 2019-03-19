@@ -1,88 +1,78 @@
-//This file was auto-corrected by findeclaration.exe on 25.5.2012 20:42:32
+
 
 //NOTE: Breathing happens once per FOUR TICKS, unless the last breath fails. In which case it happens once per ONE TICK! So oxyloss healing is done once per 4 ticks while oxyloss damage is applied once per tick!
 
-
-#define HEAT_DAMAGE_LEVEL_1 2 //Amount of damage applied when your body temperature just passes the 360.15k safety point
-#define HEAT_DAMAGE_LEVEL_2 3 //Amount of damage applied when your body temperature passes the 400K point
-#define HEAT_DAMAGE_LEVEL_3 10 //Amount of damage applied when your body temperature passes the 460K point and you are on fire
-
-#define COLD_DAMAGE_LEVEL_1 0.5 //Amount of damage applied when your body temperature just passes the 260.15k safety point
-#define COLD_DAMAGE_LEVEL_2 1.5 //Amount of damage applied when your body temperature passes the 200K point
-#define COLD_DAMAGE_LEVEL_3 3 //Amount of damage applied when your body temperature passes the 120K point
-
-//Note that gas heat damage is only applied once every FOUR ticks.
-#define HEAT_GAS_DAMAGE_LEVEL_1 2 //Amount of damage applied when the current breath's temperature just passes the 360.15k safety point
-#define HEAT_GAS_DAMAGE_LEVEL_2 4 //Amount of damage applied when the current breath's temperature passes the 400K point
-#define HEAT_GAS_DAMAGE_LEVEL_3 8 //Amount of damage applied when the current breath's temperature passes the 1000K point
-
-#define COLD_GAS_DAMAGE_LEVEL_1 0.5 //Amount of damage applied when the current breath's temperature just passes the 260.15k safety point
-#define COLD_GAS_DAMAGE_LEVEL_2 1.5 //Amount of damage applied when the current breath's temperature passes the 200K point
-#define COLD_GAS_DAMAGE_LEVEL_3 3 //Amount of damage applied when the current breath's temperature passes the 120K point
-
+// bitflags for the percentual amount of protection a piece of clothing which covers the body part offers.
+// Used with human/proc/get_heat_protection() and human/proc/get_cold_protection()
+// The values here should add up to 1.
+// Hands and feet have 2.5%, arms and legs 7.5%, each of the torso parts has 15% and the head has 30%
+#define THERMAL_PROTECTION_HEAD			0.3
+#define THERMAL_PROTECTION_CHEST		0.15
+#define THERMAL_PROTECTION_GROIN		0.15
+#define THERMAL_PROTECTION_LEG_LEFT		0.075
+#define THERMAL_PROTECTION_LEG_RIGHT	0.075
+#define THERMAL_PROTECTION_FOOT_LEFT	0.025
+#define THERMAL_PROTECTION_FOOT_RIGHT	0.025
+#define THERMAL_PROTECTION_ARM_LEFT		0.075
+#define THERMAL_PROTECTION_ARM_RIGHT	0.075
+#define THERMAL_PROTECTION_HAND_LEFT	0.025
+#define THERMAL_PROTECTION_HAND_RIGHT	0.025
 
 /mob/living/carbon/human/Life()
 	set invisibility = 0
-	set background = BACKGROUND_ENABLED
-
 	if (notransform)
 		return
 
-	if(..())
-		for(var/datum/mutation/human/HM in dna.mutations)
-			HM.on_life(src)
+	. = ..()
 
+	if (QDELETED(src))
+		return 0
+
+	if(.) //not dead
+		handle_active_genes()
+
+	if(stat != DEAD)
 		//heart attack stuff
 		handle_heart()
 
+	if(stat != DEAD)
 		//Stuff jammed in your limbs hurts
 		handle_embedded_objects()
+
+	if(stat != DEAD)
+		handle_hygiene()
+
 	//Update our name based on whether our face is obscured/disfigured
 	name = get_visible_name()
 
 	dna.species.spec_life(src) // for mutantraces
 
+	if(stat != DEAD)
+		return 1
+
 
 /mob/living/carbon/human/calculate_affecting_pressure(pressure)
-	if((wear_suit && (wear_suit.flags & STOPSPRESSUREDMAGE)) && (head && (head.flags & STOPSPRESSUREDMAGE)))
-		return ONE_ATMOSPHERE
-	else
-		return pressure
+	if (wear_suit && head && istype(wear_suit, /obj/item/clothing) && istype(head, /obj/item/clothing))
+		var/obj/item/clothing/CS = wear_suit
+		var/obj/item/clothing/CH = head
+		if (CS.clothing_flags & CH.clothing_flags & STOPSPRESSUREDAMAGE)
+			return ONE_ATMOSPHERE
+	return pressure
 
 
-/mob/living/carbon/human/handle_disabilities()
+/mob/living/carbon/human/handle_traits()
 	if(eye_blind)			//blindness, heals slowly over time
-		if(tinttotal >= TINT_BLIND) //covering your eyes heals blurry eyes faster
+		if(has_trait(TRAIT_BLIND, EYES_COVERED)) //covering your eyes heals blurry eyes faster
 			adjust_blindness(-3)
 		else
 			adjust_blindness(-1)
 	else if(eye_blurry)			//blurry eyes heal slowly
 		adjust_blurriness(-1)
 
-	//Ears
-	if(disabilities & DEAF)		//disabled-deaf, doesn't get better on its own
-		setEarDamage(-1, max(ear_deaf, 1))
+	if (getBrainLoss() >= 60)
+		SEND_SIGNAL(src, COMSIG_ADD_MOOD_EVENT, "brain_damage", /datum/mood_event/brain_damage)
 	else
-		if(istype(ears, /obj/item/clothing/ears/earmuffs)) // earmuffs rest your ears, healing ear_deaf faster and ear_damage, but keeping you deaf.
-			setEarDamage(max(ear_damage-0.10, 0), max(ear_deaf - 1, 1))
-		// deafness heals slowly over time, unless ear_damage is over 100
-		if(ear_damage < 100)
-			adjustEarDamage(-0.05,-1)
-
-	if (getBrainLoss() >= 60 && stat != DEAD)
-		if (prob(3))
-			switch(pick(1,2,3,4,5))
-				if(1)
-					say(pick("IM A PONY NEEEEEEIIIIIIIIIGH", "without oxigen blob don't evoluate?", "CAPTAINS A COMDOM", "[pick("", "that faggot traitor")] [pick("joerge", "george", "gorge", "gdoruge")] [pick("mellens", "melons", "mwrlins")] is grifing me HAL;P!!!", "can u give me [pick("telikesis","halk","eppilapse","kamelien","eksrey","glowey skin")]?", "THe saiyans screwed", "Bi is THE BEST OF BOTH WORLDS>", "I WANNA PET TEH monkeyS", "stop grifing me!!!!", "SOTP IT#", "shiggey diggey!!", "A PIRATE APPEAR"))
-				if(2)
-					say(pick("FUS RO DAH","fucking 4rries!", "stat me", ">my face", "roll it easy!", "waaaaaagh!!!", "red wonz go fasta", "FOR TEH EMPRAH", "lol2cat", "dem dwarfs man, dem dwarfs", "SPESS MAHREENS", "hwee did eet fhor khayosss", "lifelike texture ;_;", "luv can bloooom", "PACKETS!!!", "port ba[pick("y", "i", "e")] med!!!!", "REVIRT GON CHEM!!!!!!!!", "youed call her a toeugh bithc", "closd for merbegging", "pray can u [pick("spawn", "MAke me", "creat")] [pick("zenomorfs", "ayleins", "treaitors", "sheadow linkgs", "ubdoocters")]???"))
-				if(3)
-					say(pick("GEY AWAY FROM ME U GREIFING PRICK!!!!", "ur a fuckeing autist!", ";HELP SHITECIRTY MURDERIN  MEE!!!", "hwat dose tha [pick("g", "squid", "r")] mean?????", "CAL; TEH SHUTTLE!!!!!", "wearnig siNGUARLTY IS .... FIne xDDDDDDDDD", "AI laW 22 Open door", "this SI mY stATIon......", "who the HELL do u thenk u r?!!!!", "geT THE FUCK OUTTTT", "H U G B O X", ";;CRAGING THIS STTAYTION WITH NIO SURVIVROS", "[pick("bager", "syebl")] is down11!!!!!!!!!!!!!!!!!", "PSHOOOM"))
-				if(4)
-					emote("drool")
-				if(5)
-					say(pick("REMOVE SINGULARITY", "INSTLL TEG", "TURBIN IS BEST ENGIENE", "SOLIRS CAN POWER THE HOLE STATION ANEWAY", "parasteng was best", "Tajaran has warrrres, if you have coin"))
-
+		SEND_SIGNAL(src, COMSIG_CLEAR_MOOD_EVENT, "brain_damage")
 
 /mob/living/carbon/human/handle_mutations_and_radiation()
 	if(!dna || !dna.species.handle_mutations_and_radiation(src))
@@ -93,24 +83,52 @@
 		..()
 
 /mob/living/carbon/human/check_breath(datum/gas_mixture/breath)
-	dna.species.check_breath(breath, src)
+
+	var/L = getorganslot(ORGAN_SLOT_LUNGS)
+
+	if(!L)
+		if(health >= crit_threshold)
+			adjustOxyLoss(HUMAN_MAX_OXYLOSS + 1)
+		else if(!has_trait(TRAIT_NOCRITDAMAGE))
+			adjustOxyLoss(HUMAN_CRIT_MAX_OXYLOSS)
+
+		failed_last_breath = 1
+
+		var/datum/species/S = dna.species
+
+		if(S.breathid == "o2")
+			throw_alert("not_enough_oxy", /obj/screen/alert/not_enough_oxy)
+		else if(S.breathid == "tox")
+			throw_alert("not_enough_tox", /obj/screen/alert/not_enough_tox)
+		else if(S.breathid == "co2")
+			throw_alert("not_enough_co2", /obj/screen/alert/not_enough_co2)
+		else if(S.breathid == "n2")
+			throw_alert("not_enough_nitro", /obj/screen/alert/not_enough_nitro)
+
+		return FALSE
+	else
+		if(istype(L, /obj/item/organ/lungs))
+			var/obj/item/organ/lungs/lun = L
+			lun.check_breath(breath,src)
 
 /mob/living/carbon/human/handle_environment(datum/gas_mixture/environment)
 	dna.species.handle_environment(environment, src)
 
 ///FIRE CODE
 /mob/living/carbon/human/handle_fire()
-	if(!dna || !dna.species.handle_fire(src))
-		..()
-	if(on_fire)
-		var/thermal_protection = get_thermal_protection()
+	. = ..()
+	if(.) //if the mob isn't on fire anymore
+		return
 
-		if(thermal_protection >= FIRE_IMMUNITY_SUIT_MAX_TEMP_PROTECT)
-			return
-		if(thermal_protection >= FIRE_SUIT_MAX_TEMP_PROTECT)
-			bodytemperature += 11
-		else
-			bodytemperature += (BODYTEMP_HEATING_MAX + (fire_stacks * 12))
+	if(dna)
+		. = dna.species.handle_fire(src) //do special handling based on the mob's species. TRUE = they are immune to the effects of the fire.
+
+	if(!last_fire_update)
+		last_fire_update = fire_stacks
+	if((fire_stacks > HUMAN_FIRE_STACK_ICON_NUM && last_fire_update <= HUMAN_FIRE_STACK_ICON_NUM) || (fire_stacks <= HUMAN_FIRE_STACK_ICON_NUM && last_fire_update > HUMAN_FIRE_STACK_ICON_NUM))
+		last_fire_update = fire_stacks
+		update_fire()
+
 
 /mob/living/carbon/human/proc/get_thermal_protection()
 	var/thermal_protection = 0 //Simple check to estimate how protected we are against multiple temperatures
@@ -124,11 +142,15 @@
 	return thermal_protection
 
 /mob/living/carbon/human/IgniteMob()
-	if(!dna || !dna.species.IgniteMob(src))
-		..()
+	//If have no DNA or can be Ignited, call parent handling to light user
+	//If firestacks are high enough
+	if(!dna || dna.species.CanIgniteMob(src))
+		return ..()
+	. = FALSE //No ignition
 
 /mob/living/carbon/human/ExtinguishMob()
 	if(!dna || !dna.species.ExtinguishMob(src))
+		last_fire_update = null
 		..()
 //END FIRE CODE
 
@@ -216,13 +238,6 @@
 	return thermal_protection_flags
 
 /mob/living/carbon/human/proc/get_cold_protection(temperature)
-
-	if(dna.check_mutation(COLDRES))
-		return 1 //Fully protected from the cold.
-
-	if(dna && COLDRES in dna.species.specflags)
-		return 1
-
 	temperature = max(temperature, 2.7) //There is an occasional bug where the temperature is miscalculated in ares with a small amount of gas on them, so this is necessary to ensure that that bug does not affect this calculation. Space's temperature is 2.7K and most suits that are intended to protect against any cold, protect down to 2.0K.
 	var/thermal_protection_flags = get_cold_protection_flags(temperature)
 
@@ -253,69 +268,107 @@
 
 	return min(1,thermal_protection)
 
-
-/mob/living/carbon/human/handle_chemicals_in_body()
-	if(reagents)
-		reagents.metabolize(src, can_overdose=1)
-	dna.species.handle_chemicals_in_body(src)
-
 /mob/living/carbon/human/handle_random_events()
-	// Puke if toxloss is too high
+	//Puke if toxloss is too high
 	if(!stat)
-		if (getToxLoss() >= 45 && nutrition > 20)
-			lastpuke ++
-			if(lastpuke >= 25) // about 25 second delay I guess
-				Stun(5)
-
-				visible_message("<span class='danger'>[src] throws up!</span>", \
-						"<span class='userdanger'>[src] throws up!</span>")
-				playsound(loc, 'sound/effects/splat.ogg', 50, 1)
-
-				var/turf/location = loc
-				if (istype(location, /turf/simulated))
-					location.add_vomit_floor(src, 1)
-
-				nutrition -= 20
-				adjustToxLoss(-3)
-
-				// make it so you can only puke so fast
+		if(getToxLoss() >= 45 && nutrition > 20)
+			lastpuke += prob(50)
+			if(lastpuke >= 50) // about 25 second delay I guess
+				vomit(20, toxic = TRUE)
 				lastpuke = 0
+
 
 /mob/living/carbon/human/has_smoke_protection()
 	if(wear_mask)
-		if(wear_mask.flags & BLOCK_GAS_SMOKE_EFFECT)
-			. = 1
+		if(wear_mask.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
+			return TRUE
 	if(glasses)
-		if(glasses.flags & BLOCK_GAS_SMOKE_EFFECT)
-			. = 1
-	if(head)
-		if(head.flags & BLOCK_GAS_SMOKE_EFFECT)
-			. = 1
-	if(NOBREATH in dna.species.specflags)
-		. = 1
-	return .
-/mob/living/carbon/human/proc/handle_embedded_objects()
-	for(var/obj/item/organ/limb/L in organs)
-		for(var/obj/item/I in L.embedded_objects)
-			if(prob(I.embedded_pain_chance))
-				L.take_damage(I.w_class*I.embedded_pain_multiplier)
-				src << "<span class='userdanger'>\the [I] embedded in your [L.getDisplayName()] hurts!</span>"
+		if(glasses.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
+			return TRUE
+	if(head && istype(head, /obj/item/clothing))
+		var/obj/item/clothing/CH = head
+		if(CH.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
+			return TRUE
+	return ..()
 
-			if(prob(I.embedded_fall_chance))
-				L.take_damage(I.w_class*I.embedded_fall_pain_multiplier)
-				L.embedded_objects -= I
-				I.loc = get_turf(src)
-				visible_message("<span class='danger'>\the [I] falls out of [name]'s [L.getDisplayName()]!</span>","<span class='userdanger'>\the [I] falls out of your [L.getDisplayName()]!</span>")
+
+/mob/living/carbon/human/proc/handle_embedded_objects()
+	for(var/X in bodyparts)
+		var/obj/item/bodypart/BP = X
+		for(var/obj/item/I in BP.embedded_objects)
+			if(prob(I.embedding.embedded_pain_chance))
+				BP.receive_damage(I.w_class*I.embedding.embedded_pain_multiplier)
+				to_chat(src, "<span class='userdanger'>[I] embedded in your [BP.name] hurts!</span>")
+
+			if(prob(I.embedding.embedded_fall_chance))
+				BP.receive_damage(I.w_class*I.embedding.embedded_fall_pain_multiplier)
+				BP.embedded_objects -= I
+				I.forceMove(drop_location())
+				visible_message("<span class='danger'>[I] falls out of [name]'s [BP.name]!</span>","<span class='userdanger'>[I] falls out of your [BP.name]!</span>")
 				if(!has_embedded_objects())
 					clear_alert("embeddedobject")
+					SEND_SIGNAL(src, COMSIG_CLEAR_MOOD_EVENT, "embedded")
+
+/mob/living/carbon/human/proc/handle_active_genes()
+	for(var/datum/mutation/human/HM in dna.mutations)
+		HM.on_life()
 
 /mob/living/carbon/human/proc/handle_heart()
-	if(!heart_attack)
-		return
-	else
-		if(losebreath < 3)
-			losebreath += 2
-		adjustOxyLoss(5)
-		adjustBruteLoss(1)
+	var/we_breath = !has_trait(TRAIT_NOBREATH, SPECIES_TRAIT)
 
-#undef HUMAN_MAX_OXYLOSS
+	if(!undergoing_cardiac_arrest())
+		return
+
+	if(we_breath)
+		adjustOxyLoss(8)
+		Unconscious(80)
+	// Tissues die without blood circulation
+	adjustBruteLoss(2)
+
+/mob/living/carbon/human/proc/handle_hygiene()
+	if(has_trait(TRAIT_ALWAYS_CLEAN))
+		set_hygiene(HYGIENE_LEVEL_CLEAN)
+		return
+
+	var/hygiene_loss = -HYGIENE_FACTOR * 0.25 //Small loss per life
+
+	//If you're covered in blood, you'll start smelling like shit faster.
+	var/obj/item/head = get_item_by_slot(SLOT_HEAD)
+	if(head)
+		IF_HAS_BLOOD_DNA(head)
+			hygiene_loss -= 1 * HYGIENE_FACTOR
+
+	var/obj/item/mask = get_item_by_slot(SLOT_HEAD)
+	if(mask)
+		IF_HAS_BLOOD_DNA(mask)
+			hygiene_loss -= 1 * HYGIENE_FACTOR
+
+	var/obj/item/uniform = get_item_by_slot(SLOT_W_UNIFORM)
+	if(uniform)
+		IF_HAS_BLOOD_DNA(uniform)
+			hygiene_loss -= 4 * HYGIENE_FACTOR
+
+	var/obj/item/suit = get_item_by_slot(SLOT_WEAR_SUIT)
+	if(suit)
+		IF_HAS_BLOOD_DNA(suit)
+			hygiene_loss -= 3 * HYGIENE_FACTOR
+
+	var/obj/item/feet = get_item_by_slot(SLOT_SHOES)
+	if(feet)
+		IF_HAS_BLOOD_DNA(feet)
+			hygiene_loss -= 0.5 * HYGIENE_FACTOR
+
+	adjust_hygiene(hygiene_loss)
+
+
+#undef THERMAL_PROTECTION_HEAD
+#undef THERMAL_PROTECTION_CHEST
+#undef THERMAL_PROTECTION_GROIN
+#undef THERMAL_PROTECTION_LEG_LEFT
+#undef THERMAL_PROTECTION_LEG_RIGHT
+#undef THERMAL_PROTECTION_FOOT_LEFT
+#undef THERMAL_PROTECTION_FOOT_RIGHT
+#undef THERMAL_PROTECTION_ARM_LEFT
+#undef THERMAL_PROTECTION_ARM_RIGHT
+#undef THERMAL_PROTECTION_HAND_LEFT
+#undef THERMAL_PROTECTION_HAND_RIGHT

@@ -2,35 +2,36 @@
 	desc = "A space wizard's magic wall."
 	name = "FORCEWALL"
 	icon_state = "m_shield"
-	anchored = 1
+	anchored = TRUE
 	opacity = 0
-	density = 1
-	unacidable = 1
+	density = TRUE
+	CanAtmosPass = ATMOS_PASS_DENSITY
+	var/timeleft = 300 //Set to 0 for permanent forcefields (ugh)
 
-/obj/effect/forcefield/CanAtmosPass(turf/T)
-	return !density
+/obj/effect/forcefield/Initialize()
+	. = ..()
+	if(timeleft)
+		QDEL_IN(src, timeleft)
+
+/obj/effect/forcefield/singularity_pull()
+	return
 
 /obj/effect/forcefield/cult
 	desc = "An unholy shield that blocks all attacks."
 	name = "glowing wall"
+	icon = 'icons/effects/cult_effects.dmi'
 	icon_state = "cultshield"
+	CanAtmosPass = ATMOS_PASS_NO
+	timeleft = 200
 
 ///////////Mimewalls///////////
 
 /obj/effect/forcefield/mime
-	icon_state = "empty"
+	icon_state = "nothing"
 	name = "invisible wall"
 	desc = "You have a bad feeling about this."
-	var/timeleft = 300
-	var/last_process = 0
 
-/obj/effect/forcefield/mime/New()
-	..()
-	last_process = world.time
-	SSobj.processing |= src
-
-/obj/effect/forcefield/mime/process()
-	timeleft -= (world.time - last_process)
-	if(timeleft <= 0)
-		SSobj.processing.Remove(src)
-		qdel(src)
+/obj/effect/forcefield/mime/advanced
+	name = "invisible blockade"
+	desc = "You're gonna be here awhile."
+	timeleft = 600

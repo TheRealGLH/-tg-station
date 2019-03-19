@@ -1,52 +1,60 @@
 /datum/game_mode/meteor
 	name = "meteor"
 	config_tag = "meteor"
-	var/const/meteordelay = 2000
-	var/nometeors = 1
+	report_type = "meteor"
+	false_report_weight = 1
+	var/meteordelay = 2000
+	var/nometeors = 0
+	var/rampupdelta = 5
 	required_players = 0
 
-
-/datum/game_mode/meteor/announce()
-	world << "<B>The current game mode is - Meteor!</B>"
-	world << "<B>The space station has been stuck in a major meteor shower. You must escape from the station or at least live.</B>"
-
-
-/datum/game_mode/meteor/post_setup()
-//	defer_powernet_rebuild = 2//Might help with the lag
-	spawn(meteordelay)
-		nometeors = 0
-	..()
+	announce_span = "danger"
+	announce_text = "A major meteor shower is bombarding the station! The crew needs to evacuate or survive the onslaught."
 
 
 /datum/game_mode/meteor/process()
-	if(nometeors) return
+	if(nometeors || meteordelay > world.time - SSticker.round_start_time)
+		return
 
-	spawn() spawn_meteors(1, meteors_normal)
+	var/list/wavetype = GLOB.meteors_normal
+	var/meteorminutes = (world.time - SSticker.round_start_time - meteordelay) / 10 / 60
 
 
-/datum/game_mode/meteor/declare_completion()
-	var/text
+	if (prob(meteorminutes))
+		wavetype = GLOB.meteors_threatening
+
+	if (prob(meteorminutes/2))
+		wavetype = GLOB.meteors_catastrophic
+
+	var/ramp_up_final = CLAMP(round(meteorminutes/rampupdelta), 1, 10)
+
+	spawn_meteors(ramp_up_final, wavetype)
+
+
+/datum/game_mode/meteor/special_report()
 	var/survivors = 0
+	var/list/survivor_list = list()
 
-	for(var/mob/living/player in player_list)
+	for(var/mob/living/player in GLOB.player_list)
 		if(player.stat != DEAD)
 			++survivors
 
-			if(player.onCentcom())
-				text += "<br><b><font size=2>[player.real_name] escaped to the safety of Centcom.</font></b>"
+			if(player.onCentCom())
+				survivor_list += "<span class='greentext'>[player.real_name] escaped to the safety of CentCom.</span>"
 			else if(player.onSyndieBase())
-				text += "<br><b><font size=2>[player.real_name] escaped to the (relative) safety of Syndicate Space.</font></b>"
+				survivor_list += "<span class='greentext'>[player.real_name] escaped to the (relative) safety of Syndicate Space.</span>"
 			else
-				text += "<br><font size=1>[player.real_name] survived but is stranded without any hope of rescue.</font>"
-
+				survivor_list += "<span class='neutraltext'>[player.real_name] survived but is stranded without any hope of rescue.</span>"
 
 	if(survivors)
-		world << "<span class='boldnotice'>The following survived the meteor storm</span>:[text]"
+		return "<div class='panel greenborder'><span class='header'>The following survived the meteor storm:</span><br>[survivor_list.Join("<br>")]</div>"
 	else
-		world << "<span class='boldnotice'>Nobody survived the meteor storm!</span>"
+		return "<div class='panel redborder'><span class='redtext big'>Nobody survived the meteor storm!</span></div>"
 
-	feedback_set_details("round_end_result","end - evacuation")
-	feedback_set("round_end_result",survivors)
-
+/datum/game_mode/meteor/set_round_result()
 	..()
-	return 1
+	SSticker.mode_result = "end - evacuation"
+
+/datum/game_mode/meteor/generate_report()
+	return "[pick("Asteroids have", "Meteors have", "Large rocks have", "Stellar minerals have", "Space hail has", "Debris has")] been detected near your station, and a collision is possible, \
+			though unlikely.  Be prepared for largescale impacts and destruction.  Please note that the debris will prevent the escape shuttle from arriving quickly."

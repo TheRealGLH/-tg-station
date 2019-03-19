@@ -6,11 +6,13 @@
 	icon_living = "pine_1"
 	icon_dead = "pine_1"
 	icon_gib = "pine_1"
+	gender = NEUTER
 	speak_chance = 0
 	turns_per_move = 5
 	response_help = "brushes"
 	response_disarm = "pushes"
 	response_harm = "hits"
+	faction = list("plants")
 	speed = 1
 	maxHealth = 250
 	health = 250
@@ -33,41 +35,39 @@
 	maxbodytemp = 1200
 
 	faction = list("hostile")
+	deathmessage = "is hacked into pieces!"
 	loot = list(/obj/item/stack/sheet/mineral/wood)
-	gold_core_spawnable = 1
+	gold_core_spawnable = HOSTILE_SPAWN
 	del_on_death = 1
 
 /mob/living/simple_animal/hostile/tree/Life()
 	..()
-	if(istype(src.loc, /turf/simulated))
-		var/turf/simulated/T = src.loc
-		if(T.air && T.air.gases["co2"])
-			var/co2 = T.air.gases["co2"][MOLES]
+	if(isopenturf(loc))
+		var/turf/open/T = src.loc
+		if(T.air && T.air.gases[/datum/gas/carbon_dioxide])
+			var/co2 = T.air.gases[/datum/gas/carbon_dioxide][MOLES]
 			if(co2 > 0)
 				if(prob(25))
 					var/amt = min(co2, 9)
-					T.air.gases["co2"][MOLES] -= amt
-					T.atmos_spawn_air(SPAWN_OXYGEN, amt)
+					T.air.gases[/datum/gas/carbon_dioxide][MOLES] -= amt
+					T.atmos_spawn_air("o2=[amt]")
 
 /mob/living/simple_animal/hostile/tree/AttackingTarget()
-	..()
+	. = ..()
 	if(iscarbon(target))
 		var/mob/living/carbon/C = target
 		if(prob(15))
-			C.Weaken(3)
+			C.Paralyze(60)
 			C.visible_message("<span class='danger'>\The [src] knocks down \the [C]!</span>", \
 					"<span class='userdanger'>\The [src] knocks you down!</span>")
 
-/mob/living/simple_animal/hostile/tree/New()
-	..()
-	deathmessage = "[src] is hacked into pieces!"
-
 /mob/living/simple_animal/hostile/tree/festivus
 	name = "festivus pole"
-	desc = "serenity now... SERENITY NOW!"
+	desc = "Serenity now... SERENITY NOW!"
 	icon_state = "festivus_pole"
 	icon_living = "festivus_pole"
 	icon_dead = "festivus_pole"
 	icon_gib = "festivus_pole"
 	loot = list(/obj/item/stack/rods)
 	speak_emote = list("polls")
+	faction = list()

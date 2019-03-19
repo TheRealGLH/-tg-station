@@ -7,7 +7,7 @@
 /obj/effect/holodeck_effect
 	icon = 'icons/mob/screen_gen.dmi'
 	icon_state = "x2"
-	invisibility = 101
+	invisibility = INVISIBILITY_ABSTRACT
 
 /obj/effect/holodeck_effect/proc/activate(var/obj/machinery/computer/holodeck/HC)
 	return
@@ -32,7 +32,7 @@
 
 /obj/effect/holodeck_effect/cards/activate(var/obj/machinery/computer/holodeck/HC)
 	D = new(loc)
-	safety(!HC.emagged)
+	safety(!(HC.obj_flags & EMAGGED))
 	D.holo = HC
 	return D
 
@@ -76,7 +76,7 @@
 	mob = new mobtype(loc)
 
 	// these vars are not really standardized but all would theoretically create stuff on death
-	for(var/v in list("butcher_results","corpse","weapon1","weapon2") & mob.vars)
+	for(var/v in list("butcher_results","corpse","weapon1","weapon2","blood_volume") & mob.vars)
 		mob.vars[v] = null
 	return mob
 
@@ -91,3 +91,20 @@
 		/mob/living/simple_animal/pet/cat, /mob/living/simple_animal/pet/cat/kitten,
 		/mob/living/simple_animal/pet/dog/corgi, /mob/living/simple_animal/pet/dog/corgi/puppy,
 		/mob/living/simple_animal/pet/dog/pug, /mob/living/simple_animal/pet/fox)
+
+/obj/effect/holodeck_effect/mobspawner/bee
+	mobtype = /mob/living/simple_animal/hostile/poison/bees/toxin
+
+/obj/effect/holodeck_effect/mobspawner/monkey
+	mobtype = /mob/living/simple_animal/holodeck_monkey
+
+/obj/effect/holodeck_effect/mobspawner/penguin
+	mobtype = /mob/living/simple_animal/pet/penguin/emperor
+	
+/obj/effect/holodeck_effect/mobspawner/penguin/Initialize()
+	if(prob(1))
+		mobtype = /mob/living/simple_animal/pet/penguin/emperor/shamebrero
+	return ..()
+
+/obj/effect/holodeck_effect/mobspawner/penguin_baby
+	mobtype = /mob/living/simple_animal/pet/penguin/baby

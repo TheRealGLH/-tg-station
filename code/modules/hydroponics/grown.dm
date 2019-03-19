@@ -4,29 +4,34 @@
 // ***********************************************************
 
 // Base type. Subtypes are found in /grown dir.
-/obj/item/weapon/reagent_containers/food/snacks/grown
+/obj/item/reagent_containers/food/snacks/grown
 	icon = 'icons/obj/hydroponics/harvest.dmi'
 	var/obj/item/seeds/seed = null // type path, gets converted to item on New(). It's safe to assume it's always a seed item.
 	var/plantname = ""
 	var/bitesize_mod = 0
-	var/splat_type = /obj/effect/decal/cleanable/plant_smudge
+	var/splat_type = /obj/effect/decal/cleanable/food/plant_smudge
 	// If set, bitesize = 1 + round(reagents.total_volume / bitesize_mod)
 	dried_type = -1
 	// Saves us from having to define each stupid grown's dried_type as itself.
 	// If you don't want a plant to be driable (watermelons) set this to null in the time definition.
-	burn_state = FLAMMABLE
+	resistance_flags = FLAMMABLE
+	var/dry_grind = FALSE //If TRUE, this object needs to be dry to be ground up
+	var/can_distill = TRUE //If FALSE, this object cannot be distilled into an alcohol.
+	var/distill_reagent //If NULL and this object can be distilled, it uses a generic fruit_wine reagent and adjusts its variables.
+	var/wine_flavor //If NULL, this is automatically set to the fruit's flavor. Determines the flavor of the wine if distill_reagent is NULL.
+	var/wine_power = 10 //Determines the boozepwr of the wine if distill_reagent is NULL.
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/New(newloc, var/obj/item/seeds/new_seed = null)
-	..()
+/obj/item/reagent_containers/food/snacks/grown/Initialize(mapload, obj/item/seeds/new_seed)
+	. = ..()
+	if(!tastes)
+		tastes = list("[name]" = 1)
+
 	if(new_seed)
 		seed = new_seed.Copy()
 	else if(ispath(seed))
 		// This is for adminspawn or map-placed growns. They get the default stats of their seed type.
 		seed = new seed()
-		seed.potency = 50
-	else // Something is terribly wrong
-		qdel(src)
-		return
+		seed.adjust_potency(50-seed.potency)
 
 	pixel_x = rand(-5, 5)
 	pixel_y = rand(-5, 5)
@@ -34,68 +39,70 @@
 	if(dried_type == -1)
 		dried_type = src.type
 
-	for(var/datum/plant_gene/trait/T in seed.genes)
-		T.on_new(src, newloc)
+	if(seed)
+		for(var/datum/plant_gene/trait/T in seed.genes)
+			T.on_new(src, loc)
+		seed.prepare_result(src)
+		transform *= TRANSFORM_USING_VARIABLE(seed.potency, 100) + 0.5 //Makes the resulting produce's sprite larger or smaller based on potency!
+		add_juice()
 
-	seed.prepare_result(src)
-	add_juice()
-	transform *= TransformUsingVariable(seed.potency, 100, 0.5) //Makes the resulting produce's sprite larger or smaller based on potency!
 
 
-
-/obj/item/weapon/reagent_containers/food/snacks/grown/proc/add_juice()
+/obj/item/reagent_containers/food/snacks/grown/proc/add_juice()
 	if(reagents)
 		if(bitesize_mod)
 			bitesize = 1 + round(reagents.total_volume / bitesize_mod)
 		return 1
 	return 0
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/examine(user)
+/obj/item/reagent_containers/food/snacks/grown/examine(user)
 	..()
-	for(var/datum/plant_gene/trait/T in seed.genes)
-		if(T.examine_line)
-			user << T.examine_line
+	if(seed)
+		for(var/datum/plant_gene/trait/T in seed.genes)
+			if(T.examine_line)
+				to_chat(user, T.examine_line)
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/attackby(obj/item/O, mob/user, params)
+/obj/item/reagent_containers/food/snacks/grown/attackby(obj/item/O, mob/user, params)
 	..()
-	if (istype(O, /obj/item/device/analyzer/plant_analyzer))
+	if (istype(O, /obj/item/plant_analyzer))
 		var/msg = "<span class='info'>*---------*\n This is \a <span class='name'>[src]</span>.\n"
-		msg += seed.get_analyzer_text()
-		msg += "\n- Nutritional value: [reagents.get_reagent_amount("nutriment")]\n"
-		msg += "- Other substances: [reagents.total_volume-reagents.get_reagent_amount("nutriment")]\n"
-		msg += "*---------*</span>"
-
-		var/list/scannable_reagents = list("charcoal" = "Anti-Toxin", "morphine" = "Morphine", "amatoxin" = "Amatoxins",
-			"toxin" = "Toxins", "mushroomhallucinogen" = "Mushroom Hallucinogen", "condensedcapsaicin" = "Condensed Capsaicin",
-			"capsaicin" = "Capsaicin", "frostoil" = "Frost Oil", "gold" = "Mineral Content", "glycerol" = "Glycerol",
-			"radium" = "Highly Radioactive Material", "uranium" = "Radioactive Material")
+		if(seed)
+			msg += seed.get_analyzer_text()
 		var/reag_txt = ""
-		for(var/reagent_id in scannable_reagents)
-			if(reagent_id in seed.reagents_add)
+		if(seed)
+			for(var/reagent_id in seed.reagents_add)
+				var/datum/reagent/R  = GLOB.chemical_reagents_list[reagent_id]
 				var/amt = reagents.get_reagent_amount(reagent_id)
-				reag_txt += "\n<span class='info'>- [scannable_reagents[reagent_id]]: [amt*100/reagents.maximum_volume]%</span>"
+				reag_txt += "\n<span class='info'>- [R.name]: [amt]</span>"
 
 		if(reag_txt)
 			msg += reag_txt
-			msg += "<span class='info'>*---------*</span>"
-		user << msg
-		return
-	return
+			msg += "<br><span class='info'>*---------*</span>"
+		to_chat(user, msg)
+	else
+		if(seed)
+			for(var/datum/plant_gene/trait/T in seed.genes)
+				T.on_attackby(src, O, user)
 
 
 // Various gene procs
-/obj/item/weapon/reagent_containers/food/snacks/grown/attack_self(mob/user)
-	if(seed.get_gene(/datum/plant_gene/trait/squash))
+/obj/item/reagent_containers/food/snacks/grown/attack_self(mob/user)
+	if(seed && seed.get_gene(/datum/plant_gene/trait/squash))
 		squash(user)
 	..()
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/throw_impact(atom/hit_atom)
-	if(!..() && seed.get_gene(/datum/plant_gene/trait/squash)) //was it caught by a mob?
-		squash(hit_atom)
+/obj/item/reagent_containers/food/snacks/grown/throw_impact(atom/hit_atom, datum/thrownthing/throwingdatum)
+	if(!..()) //was it caught by a mob?
+		if(seed)
+			for(var/datum/plant_gene/trait/T in seed.genes)
+				T.on_throw_impact(src, hit_atom)
+			if(seed.get_gene(/datum/plant_gene/trait/squash))
+				squash(hit_atom)
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/proc/squash(atom/target)
+/obj/item/reagent_containers/food/snacks/grown/proc/squash(atom/target)
 	var/turf/T = get_turf(target)
-	if(ispath(splat_type, /obj/effect/decal/cleanable/plant_smudge))
+	forceMove(T)
+	if(ispath(splat_type, /obj/effect/decal/cleanable/food/plant_smudge))
 		if(filling_color)
 			var/obj/O = new splat_type(T)
 			O.color = filling_color
@@ -104,71 +111,60 @@
 		new splat_type(T)
 
 	if(trash)
-		if(ispath(trash, /obj/item/weapon/grown) || ispath(trash, /obj/item/weapon/reagent_containers/food/snacks/grown))
-			new trash(T, seed)
-		else
-			new trash(T)
+		generate_trash(T)
 
 	visible_message("<span class='warning'>[src] has been squashed.</span>","<span class='italics'>You hear a smack.</span>")
-	for(var/datum/plant_gene/trait/trait in seed.genes)
-		trait.on_squash(src, target)
+	if(seed)
+		for(var/datum/plant_gene/trait/trait in seed.genes)
+			trait.on_squash(src, target)
 
+	reagents.reaction(T)
 	for(var/A in T)
 		reagents.reaction(A)
 
 	qdel(src)
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/On_Consume()
+/obj/item/reagent_containers/food/snacks/grown/On_Consume()
 	if(iscarbon(usr))
-		for(var/datum/plant_gene/trait/T in seed.genes)
-			T.on_consume(src, usr)
-	..()
-
-/obj/item/weapon/reagent_containers/food/snacks/grown/Crossed(atom/movable/AM)
-	var/datum/plant_gene/trait/slip/S = seed.get_gene(/datum/plant_gene/trait/slip)
-	if(S && !ispath(trash, /obj/item/weapon/grown) && iscarbon(AM))
-		var/mob/living/carbon/M = AM
-		var/stun = min(seed.potency * S.rate * 2, 1)
-		var/weaken = min(seed.potency * S.rate, 0.5)
-		if(M.slip(stun, weaken, src))
+		if(seed)
 			for(var/datum/plant_gene/trait/T in seed.genes)
-				T.on_slip(src, M)
-		return 1
+				T.on_consume(src, usr)
 	..()
 
-
-// Glow gene procs
-/obj/item/weapon/reagent_containers/food/snacks/grown/Destroy()
-	var/datum/plant_gene/trait/glow/G = seed.get_gene(/datum/plant_gene/trait/glow)
-	if(G && ismob(loc))
-		loc.AddLuminosity(-G.get_lum(seed))
+/obj/item/reagent_containers/food/snacks/grown/generate_trash(atom/location)
+	if(trash && ispath(trash, /obj/item/grown))
+		. = new trash(location, seed)
+		trash = null
+		return
 	return ..()
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/pickup(mob/user)
-	..()
-	var/datum/plant_gene/trait/glow/G = seed.get_gene(/datum/plant_gene/trait/glow)
-	if(G)
-		SetLuminosity(0)
-		user.AddLuminosity(G.get_lum(seed))
+/obj/item/reagent_containers/food/snacks/grown/grind_requirements()
+	if(dry_grind && !dry)
+		to_chat(usr, "<span class='warning'>[src] needs to be dry before it can be ground up!</span>")
+		return
+	return TRUE
 
-/obj/item/weapon/reagent_containers/food/snacks/grown/dropped(mob/user)
-	..()
-	var/datum/plant_gene/trait/glow/G = seed.get_gene(/datum/plant_gene/trait/glow)
-	if(G)
-		user.AddLuminosity(-G.get_lum(seed))
-		SetLuminosity(G.get_lum(seed))
+/obj/item/reagent_containers/food/snacks/grown/on_grind()
+	var/nutriment = reagents.get_reagent_amount("nutriment")
+	if(grind_results&&grind_results.len)
+		for(var/i in 1 to grind_results.len)
+			grind_results[grind_results[i]] = nutriment
+		reagents.del_reagent("nutriment")
+		reagents.del_reagent("vitamin")
 
-
+/obj/item/reagent_containers/food/snacks/grown/on_juice()
+	var/nutriment = reagents.get_reagent_amount("nutriment")
+	if(juice_results&&juice_results.len)
+		for(var/i in 1 to juice_results.len)
+			juice_results[juice_results[i]] = nutriment
+		reagents.del_reagent("nutriment")
+		reagents.del_reagent("vitamin")
 
 // For item-containing growns such as eggy or gatfruit
-/obj/item/weapon/reagent_containers/food/snacks/grown/shell/attack_self(mob/user as mob)
-	user.unEquip(src)
+/obj/item/reagent_containers/food/snacks/grown/shell/attack_self(mob/user)
+	var/obj/item/T
 	if(trash)
-		var/obj/item/weapon/T
-		if(ispath(trash, /obj/item/weapon/grown) || ispath(trash, /obj/item/weapon/reagent_containers/food/snacks/grown))
-			T = new trash(user.loc, seed)
-		else
-			T = new trash(user.loc)
-		user.put_in_hands(T)
-		user << "<span class='notice'>You open [src]\'s shell, revealing \a [T].</span>"
-	qdel(src)
+		T = generate_trash()
+		qdel(src)
+		user.putItemFromInventoryInHandIfPossible(T, user.active_hand_index, TRUE)
+		to_chat(user, "<span class='notice'>You open [src]\'s shell, revealing \a [T].</span>")

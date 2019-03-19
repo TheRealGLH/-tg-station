@@ -1,12 +1,12 @@
 
 
 /obj/item/clothing/head/centhat
-	name = "\improper Centcom hat"
+	name = "\improper CentCom hat"
 	icon_state = "centcom"
 	desc = "It's good to be emperor."
 	item_state = "that"
 	flags_inv = 0
-	armor = list(melee = 30, bullet = 15, laser = 30, energy = 10, bomb = 25, bio = 0, rad = 0)
+	armor = list("melee" = 30, "bullet" = 15, "laser" = 30, "energy" = 10, "bomb" = 25, "bio" = 0, "rad" = 0, "fire" = 50, "acid" = 50)
 	strip_delay = 80
 
 /obj/item/clothing/head/powdered_wig
@@ -20,10 +20,12 @@
 	desc = "It's an amish looking hat."
 	icon_state = "tophat"
 	item_state = "that"
+	dog_fashion = /datum/dog_fashion/head
+	throwforce = 1
 
 /obj/item/clothing/head/canada
 	name = "striped red tophat"
-	desc = " It feels sticky, like maple syrup - <i>il se sent collante, comme le sirop d'érable</i>"
+	desc = "It smells like fresh donut holes. / <i>Il sent comme des trous de beignets frais.</i>"
 	icon_state = "canada"
 	item_state = "canada"
 
@@ -54,6 +56,9 @@
 	name = "nurse's hat"
 	desc = "It allows quick identification of trained medical personnel."
 	icon_state = "nursehat"
+	dynamic_hair_suffix = ""
+
+	dog_fashion = /datum/dog_fashion/head/nurse
 
 /obj/item/clothing/head/syndicatefake
 	name = "black space-helmet replica"
@@ -62,12 +67,12 @@
 	desc = "A plastic replica of a Syndicate agent's space helmet. You'll look just like a real murderous Syndicate agent in this! This is a toy, it is not made for use in space!"
 	flags_inv = HIDEMASK|HIDEEARS|HIDEEYES|HIDEFACE|HIDEHAIR|HIDEFACIALHAIR
 
-/obj/item/clothing/head/cardborg
-	name = "cardborg helmet"
-	desc = "A helmet made out of a box."
-	icon_state = "cardborg_h"
-	item_state = "cardborg_h"
-	flags_cover = HEADCOVERSEYES
+/obj/item/clothing/head/cueball
+	name = "cueball helmet"
+	desc = "A large, featureless white orb meant to be worn on your head. How do you even see out of this thing?"
+	icon_state = "cueball"
+	item_state="cueball"
+	flags_cover = HEADCOVERSEYES|HEADCOVERSMOUTH
 	flags_inv = HIDEMASK|HIDEEARS|HIDEEYES|HIDEFACE|HIDEHAIR|HIDEFACIALHAIR
 
 /obj/item/clothing/head/snowman
@@ -106,6 +111,10 @@
 	name = "rabbit ears"
 	desc = "Wearing these makes you look useless, and only good for your sex appeal."
 	icon_state = "bunny"
+	dynamic_hair_suffix = ""
+
+	dog_fashion = /datum/dog_fashion/head/rabbit
+
 
 /obj/item/clothing/head/flatcap
 	name = "flat cap"
@@ -118,10 +127,27 @@
 	desc = "Yarr."
 	icon_state = "pirate"
 	item_state = "pirate"
+	dog_fashion = /datum/dog_fashion/head/pirate
 
-/obj/item/clothing/head/hgpiratecap
-	name = "pirate hat"
-	desc = "Yarr."
+/obj/item/clothing/head/pirate
+	var/datum/language/piratespeak/L = new
+
+/obj/item/clothing/head/pirate/equipped(mob/user, slot)
+	if(!ishuman(user))
+		return
+	if(slot == SLOT_HEAD)
+		user.grant_language(/datum/language/piratespeak/)
+		to_chat(user, "You suddenly know how to speak like a pirate!")
+
+/obj/item/clothing/head/pirate/dropped(mob/user)
+	if(!ishuman(user))
+		return
+	var/mob/living/carbon/human/H = user
+	if(H.get_item_by_slot(SLOT_HEAD) == src)
+		user.remove_language(/datum/language/piratespeak/)
+		to_chat(user, "You can no longer speak like a pirate.")
+
+/obj/item/clothing/head/pirate/captain
 	icon_state = "hgpiratecap"
 	item_state = "hgpiratecap"
 
@@ -130,12 +156,14 @@
 	desc = "Yarr."
 	icon_state = "bandana"
 	item_state = "bandana"
+	dynamic_hair_suffix = ""
 
 /obj/item/clothing/head/bowler
 	name = "bowler-hat"
 	desc = "Gentleman, elite aboard!"
 	icon_state = "bowler"
 	item_state = "bowler"
+	dynamic_hair_suffix = ""
 
 /obj/item/clothing/head/witchwig
 	name = "witch costume wig"
@@ -176,13 +204,14 @@
 	icon_state = "fedora"
 	item_state = "fedora"
 	desc = "A really cool hat if you're a mobster. A really lame hat if you're not."
+	pocket_storage_component_path = /datum/component/storage/concrete/pockets/small
 
 /obj/item/clothing/head/fedora/suicide_act(mob/user)
 	if(user.gender == FEMALE)
 		return 0
 	var/mob/living/carbon/human/H = user
-	user.visible_message("<span class='suicide'>[user] is donning [src]! It looks like they're trying to be nice to girls.</span>")
-	user.say("M'lady.")
+	user.visible_message("<span class='suicide'>[user] is donning [src]! It looks like [user.p_theyre()] trying to be nice to girls.</span>")
+	user.say("M'lady.", forced = "fedora suicide")
 	sleep(10)
 	H.facial_hair_style = "Neckbeard"
 	return(BRUTELOSS)
@@ -194,19 +223,26 @@
 	desc = "You can practically taste the fiesta."
 	flags_inv = HIDEHAIR
 
+	dog_fashion = /datum/dog_fashion/head/sombrero
+
 /obj/item/clothing/head/sombrero/green
 	name = "green sombrero"
 	icon_state = "greensombrero"
 	item_state = "greensombrero"
 	desc = "As elegant as a dancing cactus."
 	flags_inv = HIDEHAIR|HIDEFACE|HIDEEARS
+	dog_fashion = null
 
 /obj/item/clothing/head/sombrero/shamebrero
 	name = "shamebrero"
 	icon_state = "shamebrero"
 	item_state = "shamebrero"
 	desc = "Once it's on, it never comes off."
-	flags = NODROP
+	dog_fashion = null
+
+/obj/item/clothing/head/sombrero/shamebrero/Initialize()
+	. = ..()
+	add_trait(TRAIT_NODROP, SHAMEBRERO_TRAIT)
 
 /obj/item/clothing/head/cone
 	desc = "This cone is trying to warn you of something!"
@@ -218,9 +254,10 @@
 	throwforce = 3
 	throw_speed = 2
 	throw_range = 5
-	w_class = 2
+	w_class = WEIGHT_CLASS_SMALL
 	attack_verb = list("warned", "cautioned", "smashed")
-	burn_state = FIRE_PROOF
+	resistance_flags = NONE
+	dynamic_hair_suffix = ""
 
 /obj/item/clothing/head/santa
 	name = "santa hat"
@@ -229,11 +266,13 @@
 	item_state = "that"
 	cold_protection = HEAD
 	min_cold_protection_temperature = FIRE_HELM_MIN_TEMP_PROTECT
+	dog_fashion = /datum/dog_fashion/head/santa
 
 /obj/item/clothing/head/jester
 	name = "jester hat"
-	desc = "A hat with bells, to add some merryness to the suit."
+	desc = "A hat with bells, to add some merriness to the suit."
 	icon_state = "jester_hat"
+	dynamic_hair_suffix = ""
 
 /obj/item/clothing/head/rice_hat
 	name = "rice hat"
@@ -244,3 +283,87 @@
 	name = "lizardskin cloche hat"
 	desc = "How many lizards died to make this hat? Not enough."
 	icon_state = "lizard"
+
+/obj/item/clothing/head/papersack
+	name = "paper sack hat"
+	desc = "A paper sack with crude holes cut out for eyes. Useful for hiding one's identity or ugliness."
+	icon_state = "papersack"
+	flags_inv = HIDEHAIR|HIDEFACE|HIDEEARS
+
+/obj/item/clothing/head/papersack/smiley
+	name = "paper sack hat"
+	desc = "A paper sack with crude holes cut out for eyes and a sketchy smile drawn on the front. Not creepy at all."
+	icon_state = "papersack_smile"
+	flags_inv = HIDEHAIR|HIDEFACE|HIDEEARS
+
+/obj/item/clothing/head/crown
+	name = "crown"
+	desc = "A crown fit for a king, a petty king maybe."
+	icon_state = "crown"
+	armor = list("melee" = 15, "bullet" = 0, "laser" = 0,"energy" = 15, "bomb" = 0, "bio" = 0, "rad" = 0, "fire" = 100, "acid" = 50)
+	resistance_flags = FIRE_PROOF
+	dynamic_hair_suffix = ""
+
+/obj/item/clothing/head/crown/fancy
+	name = "magnificent crown"
+	desc = "A crown worn by only the highest emperors of the <s>land</s> space."
+	icon_state = "fancycrown"
+
+/obj/item/clothing/head/scarecrow_hat
+	name = "scarecrow hat"
+	desc = "A simple straw hat."
+	icon_state = "scarecrow_hat"
+
+/obj/item/clothing/head/lobsterhat
+	name = "foam lobster head"
+	desc = "When everything's going to crab, protecting your head is the best choice."
+	icon_state = "lobster_hat"
+	flags_inv = HIDEMASK|HIDEEARS|HIDEEYES|HIDEFACE|HIDEHAIR|HIDEFACIALHAIR
+
+/obj/item/clothing/head/drfreezehat
+	name = "doctor freeze's wig"
+	desc = "A cool wig for cool people."
+	icon_state = "drfreeze_hat"
+	flags_inv = HIDEHAIR
+
+/obj/item/clothing/head/pharaoh
+	name = "pharaoh hat"
+	desc = "Walk like an Egyptian."
+	icon_state = "pharoah_hat"
+	icon_state = "pharoah_hat"
+
+/obj/item/clothing/head/jester/alt
+	name = "jester hat"
+	desc = "A hat with bells, to add some merriness to the suit."
+	icon_state = "jester_hat2"
+	dynamic_hair_suffix = ""
+
+/obj/item/clothing/head/nemes
+	name = "headdress of Nemes"
+	desc = "Lavish space tomb not included."
+	icon_state = "nemes_headdress"
+	icon_state = "nemes_headdress"
+
+/obj/item/clothing/head/frenchberet
+	name = "french beret"
+	desc = "A quality beret, infused with the aroma of chain-smoking, wine-swilling Parisians. You feel less inclined to engage military conflict, for some reason."
+	icon_state = "beret"
+	dynamic_hair_suffix = ""
+
+/obj/item/clothing/head/frenchberet/speechModification(M)
+	if(copytext(M, 1, 2) != "*")
+		M = " [M]"
+		var/list/french_words = strings("french_replacement.json", "french")
+
+		for(var/key in french_words)
+			var/value = french_words[key]
+			if(islist(value))
+				value = pick(value)
+
+			M = replacetextEx(M, " [uppertext(key)]", " [uppertext(value)]")
+			M = replacetextEx(M, " [capitalize(key)]", " [capitalize(value)]")
+			M = replacetextEx(M, " [key]", " [value]")
+
+		if(prob(3))
+			M += pick(" Honh honh honh!"," Honh!"," Zut Alors!")
+	return trim(M)

@@ -1,27 +1,41 @@
 #define pick_list(FILE, KEY) (pick(strings(FILE, KEY)))
+#define pick_list_replacements(FILE, KEY) (strings_replacement(FILE, KEY))
+#define json_load(FILE) (json_decode(file2text(FILE)))
 
-var/global/list/string_cache
+GLOBAL_LIST(string_cache)
+GLOBAL_VAR(string_filename_current_key)
 
-/proc/strings(filename as text, key as text)
-	var/list/fileList
-	if(!string_cache)
-		string_cache = new
-	if(!(filename in string_cache))
-		if(fexists("strings/[filename]"))
-			string_cache[filename] = list()
-			var/list/stringsList = list()
-			fileList = file2list("strings/[filename]")
-			for(var/s in fileList)
-				stringsList = splittext(s, "@=")
-				if(stringsList.len != 2)
-					CRASH("Invalid string list in strings/[filename]")
-				if(findtext(stringsList[2], "@,"))
-					string_cache[filename][stringsList[1]] = splittext(stringsList[2], "@,")
-				else
-					string_cache[filename][stringsList[1]] = stringsList[2] // Its a single string!
-		else
-			CRASH("file not found: strings/[filename]")
-	if((filename in string_cache) && (key in string_cache[filename]))
-		return string_cache[filename][key]
+
+/proc/strings_replacement(filename, key, directory = "strings")
+	load_strings_file(filename, directory)
+
+	if((filename in GLOB.string_cache) && (key in GLOB.string_cache[filename]))
+		var/response = pick(GLOB.string_cache[filename][key])
+		var/regex/r = regex("@pick\\((\\D+?)\\)", "g")
+		response = r.Replace(response, /proc/strings_subkey_lookup)
+		return response
 	else
-		CRASH("strings list not found: strings/[filename], index=[key]")
+		CRASH("strings list not found: [directory]/[filename], index=[key]")
+
+/proc/strings(filename as text, key as text, directory = "strings")
+	load_strings_file(filename, directory)
+	if((filename in GLOB.string_cache) && (key in GLOB.string_cache[filename]))
+		return GLOB.string_cache[filename][key]
+	else
+		CRASH("strings list not found: [directory]/[filename], index=[key]")
+
+/proc/strings_subkey_lookup(match, group1)
+	return pick_list(GLOB.string_filename_current_key, group1)
+
+/proc/load_strings_file(filename, directory = "strings")
+	GLOB.string_filename_current_key = filename
+	if(filename in GLOB.string_cache)
+		return //no work to do
+
+	if(!GLOB.string_cache)
+		GLOB.string_cache = new
+
+	if(fexists("[directory]/[filename]"))
+		GLOB.string_cache[filename] = json_load("[directory]/[filename]")
+	else
+		CRASH("file not found: [directory]/[filename]")

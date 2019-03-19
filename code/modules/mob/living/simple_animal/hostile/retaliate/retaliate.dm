@@ -8,7 +8,7 @@
 			return L
 		else
 			enemies -= L
-	else if(istype(A, /obj/mecha))
+	else if(ismecha(A))
 		var/obj/mecha/M = A
 		if(M.occupant)
 			return A
@@ -28,30 +28,20 @@
 			continue
 		if(isliving(A))
 			var/mob/living/M = A
-			var/faction_check = 0
-			for(var/F in faction)
-				if(F in M.faction)
-					faction_check = 1
-					break
-			if(faction_check && attack_same || !faction_check)
+			if(faction_check_mob(M) && attack_same || !faction_check_mob(M))
 				enemies |= M
-		else if(istype(A, /obj/mecha))
+		else if(ismecha(A))
 			var/obj/mecha/M = A
 			if(M.occupant)
 				enemies |= M
 				enemies |= M.occupant
 
 	for(var/mob/living/simple_animal/hostile/retaliate/H in around)
-		var/retaliate_faction_check = 0
-		for(var/F in faction)
-			if(F in H.faction)
-				retaliate_faction_check = 1
-				break
-		if(retaliate_faction_check && !attack_same && !H.attack_same)
+		if(faction_check_mob(H) && !attack_same && !H.attack_same)
 			H.enemies |= enemies
 	return 0
 
-/mob/living/simple_animal/hostile/retaliate/adjustHealth(damage)
+/mob/living/simple_animal/hostile/retaliate/adjustHealth(amount, updating_health = TRUE, forced = FALSE)
 	. = ..()
-	if(stat == CONSCIOUS)
+	if(. > 0 && stat == CONSCIOUS)
 		Retaliate()

@@ -1,53 +1,56 @@
-//This file was auto-corrected by findeclaration.exe on 25.5.2012 20:42:32
+
 
 /mob/living/carbon/monkey
 
 
 /mob/living/carbon/monkey/Life()
 	set invisibility = 0
-	set background = BACKGROUND_ENABLED
 
 	if (notransform)
 		return
 
-	..()
+	if(..())
 
-	if(!client && stat == CONSCIOUS)
-		if(prob(33) && canmove && isturf(loc) && !pulledby && !grabbed_by.len)
-			step(src, pick(cardinal))
-		if(prob(1))
-			emote(pick("scratch","jump","roll","tail"))
+		if(!client)
+			if(stat == CONSCIOUS)
+				if(on_fire || buckled || restrained())
+					if(!resisting && prob(MONKEY_RESIST_PROB))
+						resisting = TRUE
+						walk_to(src,0)
+						resist()
+				else if(resisting)
+					resisting = FALSE
+				else if((mode == MONKEY_IDLE && !pickupTarget && !prob(MONKEY_SHENANIGAN_PROB)) || !handle_combat())
+					if(prob(25) && (mobility_flags & MOBILITY_MOVE) && isturf(loc) && !pulledby)
+						step(src, pick(GLOB.cardinals))
+					else if(prob(1))
+						emote(pick("scratch","jump","roll","tail"))
+			else
+				walk_to(src,0)
 
 /mob/living/carbon/monkey/handle_mutations_and_radiation()
+	if(radiation)
+		if(radiation > RAD_MOB_KNOCKDOWN && prob(RAD_MOB_KNOCKDOWN_PROB))
+			if(!IsParalyzed())
+				emote("collapse")
+			Paralyze(RAD_MOB_KNOCKDOWN_AMOUNT)
+			to_chat(src, "<span class='danger'>You feel weak.</span>")
+		if(radiation > RAD_MOB_MUTATE)
+			if(prob(1))
+				to_chat(src, "<span class='danger'>You mutate!</span>")
+				easy_randmut(NEGATIVE+MINOR_NEGATIVE)
+				emote("gasp")
+				domutcheck()
 
-	if (radiation)
-		if (radiation > 100)
-			Weaken(10)
-			src << "<span class='danger'>You feel weak.</span>"
-			emote("collapse")
-
-		switch(radiation)
-
-			if(50 to 75)
-				if(prob(5))
-					Weaken(3)
-					src << "<span class='danger'>You feel weak.</span>"
-					emote("collapse")
-
-			if(75 to 100)
-				if(prob(1))
-					src << "<span class='danger'>You mutate!</span>"
-					randmutb(src)
-					emote("gasp")
-					domutcheck()
-		..()
-
-/mob/living/carbon/monkey/handle_chemicals_in_body()
-	if(reagents)
-		reagents.metabolize(src, can_overdose=1)
+				if(radiation > RAD_MOB_MUTATE * 2 && prob(50))
+					gorillize()
+					return
+		if(radiation > RAD_MOB_VOMIT && prob(RAD_MOB_VOMIT_PROB))
+			vomit(10, TRUE)
+	return ..()
 
 /mob/living/carbon/monkey/handle_breath_temperature(datum/gas_mixture/breath)
-	if(abs(310.15 - breath.temperature) > 50)
+	if(abs(BODYTEMP_NORMAL - breath.temperature) > 50)
 		switch(breath.temperature)
 			if(-INFINITY to 120)
 				adjustFireLoss(3)
@@ -69,41 +72,42 @@
 	var/loc_temp = get_temperature(environment)
 
 	if(stat != DEAD)
-		natural_bodytemperature_stabilization()
+		adjust_bodytemperature(natural_bodytemperature_stabilization())
 
 	if(!on_fire) //If you're on fire, you do not heat up or cool down based on surrounding gases
 		if(loc_temp < bodytemperature)
-			bodytemperature += min(((loc_temp - bodytemperature) / BODYTEMP_COLD_DIVISOR), BODYTEMP_COOLING_MAX)
+			adjust_bodytemperature(max((loc_temp - bodytemperature) / BODYTEMP_COLD_DIVISOR, BODYTEMP_COOLING_MAX))
 		else
-			bodytemperature += min(((loc_temp - bodytemperature) / BODYTEMP_HEAT_DIVISOR), BODYTEMP_HEATING_MAX)
+			adjust_bodytemperature(min((loc_temp - bodytemperature) / BODYTEMP_HEAT_DIVISOR, BODYTEMP_HEATING_MAX))
 
-	if(bodytemperature > BODYTEMP_HEAT_DAMAGE_LIMIT)
+
+	if(bodytemperature > BODYTEMP_HEAT_DAMAGE_LIMIT && !has_trait(TRAIT_RESISTHEAT))
 		switch(bodytemperature)
 			if(360 to 400)
 				throw_alert("temp", /obj/screen/alert/hot, 1)
-				adjustFireLoss(2)
+				apply_damage(HEAT_DAMAGE_LEVEL_1, BURN)
 			if(400 to 460)
 				throw_alert("temp", /obj/screen/alert/hot, 2)
-				adjustFireLoss(3)
+				apply_damage(HEAT_DAMAGE_LEVEL_2, BURN)
 			if(460 to INFINITY)
 				throw_alert("temp", /obj/screen/alert/hot, 3)
 				if(on_fire)
-					adjustFireLoss(8)
+					apply_damage(HEAT_DAMAGE_LEVEL_3, BURN)
 				else
-					adjustFireLoss(3)
+					apply_damage(HEAT_DAMAGE_LEVEL_2, BURN)
 
-	else if(bodytemperature < BODYTEMP_COLD_DAMAGE_LIMIT)
+	else if(bodytemperature < BODYTEMP_COLD_DAMAGE_LIMIT && !has_trait(TRAIT_RESISTCOLD))
 		if(!istype(loc, /obj/machinery/atmospherics/components/unary/cryo_cell))
 			switch(bodytemperature)
 				if(200 to 260)
 					throw_alert("temp", /obj/screen/alert/cold, 1)
-					adjustFireLoss(0.5)
+					apply_damage(COLD_DAMAGE_LEVEL_1, BURN)
 				if(120 to 200)
 					throw_alert("temp", /obj/screen/alert/cold, 2)
-					adjustFireLoss(1.5)
+					apply_damage(COLD_DAMAGE_LEVEL_2, BURN)
 				if(-INFINITY to 120)
 					throw_alert("temp", /obj/screen/alert/cold, 3)
-					adjustFireLoss(3)
+					apply_damage(COLD_DAMAGE_LEVEL_3, BURN)
 		else
 			clear_alert("temp")
 
@@ -136,11 +140,31 @@
 
 /mob/living/carbon/monkey/has_smoke_protection()
 	if(wear_mask)
-		if(wear_mask.flags & BLOCK_GAS_SMOKE_EFFECT)
+		if(wear_mask.clothing_flags & BLOCK_GAS_SMOKE_EFFECT)
 			return 1
 
 /mob/living/carbon/monkey/handle_fire()
-	if(..())
+	. = ..()
+	if(.) //if the mob isn't on fire anymore
 		return
-	bodytemperature += BODYTEMP_HEATING_MAX
-	return
+
+	//the fire tries to damage the exposed clothes and items
+	var/list/burning_items = list()
+	//HEAD//
+	var/list/obscured = check_obscured_slots(TRUE)
+	if(wear_mask && !(SLOT_WEAR_MASK in obscured))
+		burning_items += wear_mask
+	if(wear_neck && !(SLOT_NECK in obscured))
+		burning_items += wear_neck
+	if(head)
+		burning_items += head
+
+	if(back)
+		burning_items += back
+
+	for(var/X in burning_items)
+		var/obj/item/I = X
+		I.fire_act((fire_stacks * 50)) //damage taken is reduced to 2% of this value by fire_act()
+
+	adjust_bodytemperature(BODYTEMP_HEATING_MAX)
+	SEND_SIGNAL(src, COMSIG_ADD_MOOD_EVENT, "on_fire", /datum/mood_event/on_fire)

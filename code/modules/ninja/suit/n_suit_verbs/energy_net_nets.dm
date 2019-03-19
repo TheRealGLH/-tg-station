@@ -3,177 +3,81 @@ It will teleport people to a holding facility after 30 seconds. (Check the proce
 It is possible to destroy the net by the occupant or someone else.
 */
 
-/obj/effect/energy_net
+/obj/structure/energy_net
 	name = "energy net"
 	desc = "It's a net made of green energy."
 	icon = 'icons/effects/effects.dmi'
 	icon_state = "energynet"
 
-	density = 1//Can't pass through.
+	density = TRUE//Can't pass through.
 	opacity = 0//Can see through.
-	mouse_opacity = 1//So you can hit it with stuff.
-	anchored = 1//Can't drag/grab the trapped mob.
-
-	var/health = 25//How much health it has.
-	var/mob/living/affecting = null//Who it is currently affecting, if anyone.
-	var/mob/living/master = null//Who shot web. Will let this person know if the net was successful or failed.
-
-
-
-/obj/effect/energy_net/proc/healthcheck()
-	if(health <=0)
-		density = 0
-		if(affecting)
-			var/mob/living/carbon/M = affecting
-			M.anchored = 0
-			for(var/mob/O in viewers(src, 3))
-				O.show_message("[M.name] was recovered from the energy net!", 1, "<span class='italics'>You hear a grunt.</span>", 2)
-			if(!isnull(master))//As long as they still exist.
-				master << "<span class='userdanger'>ERROR</span>: unable to initiate transport protocol. Procedure terminated."
-		qdel(src)
-	return
+	mouse_opacity = MOUSE_OPACITY_ICON//So you can hit it with stuff.
+	anchored = TRUE//Can't drag/grab the net.
+	layer = ABOVE_ALL_MOB_LAYER
+	max_integrity = 25 //How much health it has.
+	can_buckle = 1
+	buckle_lying = 0
+	buckle_prevents_pull = TRUE
+	var/mob/living/carbon/affecting//Who it is currently affecting, if anyone.
+	var/mob/living/carbon/master//Who shot web. Will let this person know if the net was successful or failed.
+	var/check = 15//30 seconds before teleportation. Could be extended I guess.
+	var/success = FALSE
 
 
+/obj/structure/energy_net/play_attack_sound(damage, damage_type = BRUTE, damage_flag = 0)
+	switch(damage_type)
+		if(BRUTE)
+			playsound(src, 'sound/weapons/slash.ogg', 80, 1)
+		if(BURN)
+			playsound(src, 'sound/weapons/slash.ogg', 80, 1)
 
-/obj/effect/energy_net/process(mob/living/carbon/M)
-	var/check = 30//30 seconds before teleportation. Could be extended I guess.
-	var/mob_name = affecting.name//Since they will report as null if terminated before teleport.
-	//The person can still try and attack the net when inside.
+/obj/structure/energy_net/Destroy()
+	if(!success)
+		if(!QDELETED(affecting))
+			affecting.visible_message("[affecting.name] was recovered from the energy net!", "You were recovered from the energy net!", "<span class='italics'>You hear a grunt.</span>")
+		if(!QDELETED(master))//As long as they still exist.
+			to_chat(master, "<span class='userdanger'>ERROR</span>: unable to initiate transport protocol. Procedure terminated.")
+	return ..()
 
-	M.notransform = 1 //No moving for you!
-
-	while(!isnull(M)&&!isnull(src)&&check>0)//While M and net exist, and 30 seconds have not passed.
-		check--
-		sleep(10)
-
-	if(isnull(M)||M.loc!=loc)//If mob is gone or not at the location.
-		if(!isnull(master))//As long as they still exist.
-			master << "<span class='userdanger'>ERROR</span>: unable to locate \the [mob_name]. Procedure terminated."
+/obj/structure/energy_net/process()
+	if(QDELETED(affecting)||affecting.loc!=loc)
 		qdel(src)//Get rid of the net.
-		M.notransform = 0
 		return
 
-	if(!isnull(src))//As long as both net and person exist.
-		//No need to check for countdown here since while() broke, it's implicit that it finished.
+	if(check>0)
+		check--
+		return
 
-		density = 0//Make the net pass-through.
-		invisibility = 101//Make the net invisible so all the animations can play out.
-		health = INFINITY//Make the net invincible so that an explosion/something else won't kill it while, spawn() is running.
-		for(var/obj/item/W in M)
-			if(istype(M,/mob/living/carbon/human))
-				if(W==M:w_uniform)
-					continue//So all they're left with are shoes and uniform.
-				if(W==M:shoes)
-					continue
-			M.unEquip(W)
+	success = TRUE
+	qdel(src)
+	if(ishuman(affecting))
+		var/mob/living/carbon/human/H = affecting
+		for(var/obj/item/W in H)
+			if(W == H.w_uniform)
+				continue//So all they're left with are shoes and uniform.
+			if(W == H.shoes)
+				continue
+			H.dropItemToGround(W)
 
-		spawn(0)
-			playsound(M.loc, 'sound/effects/sparks4.ogg', 50, 1)
-			anim(M.loc,M,'icons/mob/mob.dmi',,"phaseout",,M.dir)
+	playsound(affecting, 'sound/effects/sparks4.ogg', 50, 1)
+	new /obj/effect/temp_visual/dir_setting/ninja/phase/out(affecting.drop_location(), affecting.dir)
 
-		M.loc = pick(holdingfacility)//Throw mob in to the holding facility.
-		M << "<span class='danger'>You appear in a strange place!</span>"
+	visible_message("[affecting] suddenly vanishes!")
+	affecting.forceMove(pick(GLOB.holdingfacility)) //Throw mob in to the holding facility.
+	to_chat(affecting, "<span class='danger'>You appear in a strange place!</span>")
 
-		spawn(0)
-			var/datum/effect_system/spark_spread/spark_system = new /datum/effect_system/spark_spread()
-			spark_system.set_up(5, 0, M.loc)
-			spark_system.start()
-			playsound(M.loc, 'sound/effects/phasein.ogg', 25, 1)
-			playsound(M.loc, 'sound/effects/sparks2.ogg', 50, 1)
-			anim(M.loc,M,'icons/mob/mob.dmi',,"phasein",,M.dir)
-			qdel(src)//Wait for everything to finish, delete the net. Else it will stop everything once net is deleted, including the spawn(0).
+	if(!QDELETED(master))//As long as they still exist.
+		to_chat(master, "<span class='notice'><b>SUCCESS</b>: transport procedure of [affecting] complete.</span>")
+	do_sparks(5, FALSE, affecting)
+	playsound(affecting, 'sound/effects/phasein.ogg', 25, 1)
+	playsound(affecting, 'sound/effects/sparks2.ogg', 50, 1)
+	new /obj/effect/temp_visual/dir_setting/ninja/phase(affecting.drop_location(), affecting.dir)
 
-		for(var/mob/O in viewers(src, 3))
-			O.show_message("[M] vanishes!", 1, "<span class='italics'>You hear sparks flying!</span>", 2)
-
-		if(!isnull(master))//As long as they still exist.
-			master << "<span class='notice'><b>SUCCESS</b>: transport procedure of \the [affecting] complete.</span>"
-		M.notransform = 0
-
-	else//And they are free.
-		M << "<span class='notice'>You are free of the net!</span>"
-		M.notransform = 0
-	return
-
-
-
-/obj/effect/energy_net/bullet_act(obj/item/projectile/Proj)
-	health -= Proj.damage
-	healthcheck()
-	..()
-
-
-
-/obj/effect/energy_net/ex_act(severity, target)
-	switch(severity)
-		if(1)
-			health-=50
-		if(2)
-			health-=50
-		if(3)
-			health-=prob(50)?50:25
-	healthcheck()
-	return
-
-
-
-/obj/effect/energy_net/blob_act()
-	health-=50
-	healthcheck()
-	return
-
-
-
-/obj/effect/energy_net/hitby(AM as mob|obj)
-	..()
-	var/tforce = 0
-	if(ismob(AM))
-		tforce = 10
-	else
-		tforce = AM:throwforce
-	playsound(src.loc, 'sound/weapons/slash.ogg', 80, 1)
-	health = max(0, health - tforce)
-	healthcheck()
-	..()
-	return
-
-
-
-/obj/effect/energy_net/attack_hulk(mob/living/carbon/human/user)
-	..(user, 1)
-	user.visible_message("<span class='danger'>[user] rips the energy net apart!</span>", \
-								"<span class='notice'>You easily destroy the energy net.</span>")
-	health-=50
-	healthcheck()
-
-
-
-/obj/effect/energy_net/attack_paw(mob/user)
+/obj/structure/energy_net/attack_paw(mob/user)
 	return attack_hand()
 
+/obj/structure/energy_net/user_buckle_mob(mob/living/M, mob/living/user)
+	return//We only want our target to be buckled
 
-
-/obj/effect/energy_net/attack_alien(mob/living/user)
-	user.do_attack_animation(src)
-	if (islarva(user))
-		return
-	playsound(src.loc, 'sound/weapons/slash.ogg', 80, 1)
-	health -= rand(10, 20)
-	if(health > 0)
-		user.visible_message("<span class='danger'>[user] claws at the energy net!</span>", \
-					 "\green You claw at the net.")
-	else
-		user.visible_message("<span class='danger'>[user] slices the energy net apart!</span>", \
-						 "\green You slice the energy net to pieces.")
-	healthcheck()
-	return
-
-
-
-/obj/effect/energy_net/attackby(obj/item/weapon/W, mob/user, params)
-	var/aforce = W.force
-	health = max(0, health - aforce)
-	healthcheck()
-	..()
-	return
-
+/obj/structure/energy_net/user_unbuckle_mob(mob/living/buckled_mob, mob/living/user)
+	return//The net must be destroyed to free the target

@@ -1,9 +1,9 @@
-/obj/item/weapon/paper/manifest
+/obj/item/paper/fluff/jobs/cargo/manifest
 	var/order_cost = 0
 	var/order_id = 0
 	var/errors = 0
 
-/obj/item/weapon/paper/manifest/New(atom/A, id, cost)
+/obj/item/paper/fluff/jobs/cargo/manifest/New(atom/A, id, cost)
 	..()
 	order_id = id
 	order_cost = cost
@@ -15,6 +15,12 @@
 	if(prob(MANIFEST_ERROR_CHANCE))
 		errors |= MANIFEST_ERROR_ITEM
 
+/obj/item/paper/fluff/jobs/cargo/manifest/proc/is_approved()
+	return stamped && stamped.len && !is_denied()
+
+/obj/item/paper/fluff/jobs/cargo/manifest/proc/is_denied()
+	return stamped && ("stamp-deny" in stamped)
+
 /datum/supply_order
 	var/id
 	var/orderer
@@ -22,17 +28,19 @@
 	var/orderer_ckey
 	var/reason
 	var/datum/supply_pack/pack
+	var/datum/bank_account/paying_account
 
-/datum/supply_order/New(datum/supply_pack/pack, orderer, orderer_rank, orderer_ckey, reason)
+/datum/supply_order/New(datum/supply_pack/pack, orderer, orderer_rank, orderer_ckey, reason, paying_account)
 	id = SSshuttle.ordernum++
 	src.pack = pack
 	src.orderer = orderer
 	src.orderer_rank = orderer_rank
 	src.orderer_ckey = orderer_ckey
 	src.reason = reason
+	src.paying_account = paying_account
 
 /datum/supply_order/proc/generateRequisition(turf/T)
-	var/obj/item/weapon/paper/P = new(T)
+	var/obj/item/paper/P = new(T)
 
 	P.name = "requisition form - #[id] ([pack.name])"
 	P.info += "<h2>[station_name()] Supply Requisition</h2>"
@@ -41,6 +49,8 @@
 	P.info += "Item: [pack.name]<br/>"
 	P.info += "Access Restrictions: [get_access_desc(pack.access)]<br/>"
 	P.info += "Requested by: [orderer]<br/>"
+	if(paying_account)
+		P.info += "Paid by: [paying_account.account_holder]<br/>"
 	P.info += "Rank: [orderer_rank]<br/>"
 	P.info += "Comment: [reason]<br/>"
 
@@ -48,13 +58,16 @@
 	return P
 
 /datum/supply_order/proc/generateManifest(obj/structure/closet/crate/C)
-	var/obj/item/weapon/paper/manifest/P = new(C, id, pack.cost)
+	var/obj/item/paper/fluff/jobs/cargo/manifest/P = new(C, id, pack.cost)
 
 	var/station_name = (P.errors & MANIFEST_ERROR_NAME) ? new_station_name() : station_name()
 
 	P.name = "shipping manifest - #[id] ([pack.name])"
 	P.info += "<h2>[command_name()] Shipping Manifest</h2>"
 	P.info += "<hr/>"
+	if(paying_account)
+		P.info += "Direct purchase from [paying_account.account_holder]<br/>"
+		P.name += " - Purchased by [paying_account.account_holder]"
 	P.info += "Order #[id]<br/>"
 	P.info += "Destination: [station_name]<br/>"
 	P.info += "Item: [pack.name]<br/>"
@@ -71,15 +84,15 @@
 	P.info += "<h4>Stamp below to confirm receipt of goods:</h4>"
 
 	P.update_icon()
-	P.loc = C
+	P.forceMove(C)
 	C.manifest = P
 	C.update_icon()
 
 	return P
 
-/datum/supply_order/proc/generate(turf/T)
-	var/obj/structure/closet/crate/C = pack.generate(T)
-	var/obj/item/weapon/paper/manifest/M = generateManifest(C)
+/datum/supply_order/proc/generate(atom/A)
+	var/obj/structure/closet/crate/C = pack.generate(A, paying_account)
+	var/obj/item/paper/fluff/jobs/cargo/manifest/M = generateManifest(C)
 
 	if(M.errors & MANIFEST_ERROR_ITEM)
 		if(istype(C, /obj/structure/closet/crate/secure) || istype(C, /obj/structure/closet/crate/large))

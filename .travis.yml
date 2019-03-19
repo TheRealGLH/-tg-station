@@ -1,54 +1,70 @@
 language: generic
 sudo: false
-
-env:
-    global:
-    - BYOND_MAJOR="510"
-    - BYOND_MINOR="1322"
-    - NODE_VERSION="4"
-    matrix:
-    - DM_MAPFILE="tgstation2"
-    - DM_MAPFILE="metastation"
-    - DM_MAPFILE="ministation"
-    - DM_MAPFILE="dreamstation"
-    - DM_MAPFILE="birdstation"
-    - DM_MAPFILE="asteroidstation"
-    - DM_MAPFILE="efficiencystation"
-
-
-cache:
-  directories:
-    - tgui/node_modules
-    - $HOME/BYOND-${BYOND_MAJOR}.${BYOND_MINOR}
-
-
-addons:
-  apt:
-    packages:
-      - libc6-i386
-      - libgcc1:i386
-      - libstdc++6:i386
-      - python
-      - python-pip
-
+branches:
+  except:
+  - ___TGS3TempBranch
+  - ___TGSTempBranch
+matrix:
+  include:
+    - env:
+      - BUILD_TOOLS=true
+      name: "Build Tools"
+      addons:
+        apt:
+          packages:
+            - python3
+            - python3-pip
+      cache:
+        directories:
+          - tgui/node_modules
+    - env:
+      - BUILD_TESTING=true
+      - BUILD_TOOLS=false
+      name: "Build All Maps"
+      addons:
+        apt:
+          packages:
+            - libstdc++6:i386
+      cache:
+        directories:
+          - $HOME/BYOND
+    - env:
+      - BUILD_TESTING=false
+      - BUILD_TOOLS=false
+      name: "Build and Run Unit Tests"
+      addons:
+        mariadb: '10.2'
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - libstdc++6:i386
+            - libssl-dev:i386
+            - gcc-multilib
+            - g++-7
+            - g++-7-multilib
+            - libmariadbclient-dev:i386
+      cache:
+        directories:
+          - $HOME/.cargo
+          - $HOME/BYOND
+          - $HOME/MariaDB
+          - $HOME/.rustup
 
 install:
-  - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install $NODE_VERSION
-  - npm install -g gulp-cli
-  - pip install --user PyYaml -q
-  - pip install --user beautifulsoup4 -q
+  - tools/travis/install_build_tools.sh
+  - if [ $BUILD_TOOLS = false ] && [ $BUILD_TESTING = false ]; then mysql -u root -e 'CREATE DATABASE tg_travis;'; fi
+  - if [ $BUILD_TOOLS = false ] && [ $BUILD_TESTING = false ]; then mysql -u root tg_travis < SQL/tgstation_schema.sql; fi
+  - if [ $BUILD_TOOLS = false ] && [ $BUILD_TESTING = false ]; then mysql -u root -e 'CREATE DATABASE tg_travis_prefixed;'; fi
+  - if [ $BUILD_TOOLS = false ] && [ $BUILD_TESTING = false ]; then mysql -u root tg_travis_prefixed < SQL/tgstation_schema_prefixed.sql; fi
 
 before_script:
-  - cd tgui && npm install && cd ..
-  - chmod +x ./install-byond.sh
-  - ./install-byond.sh
+  - tools/travis/before_build_tools.sh
+  - tools/travis/before_build_byond.sh
 
 script:
-  - shopt -s globstar
-  - (! grep 'step_[xy]' _maps/**/*.dmm)
-  - md5sum -c - <<< "49bc6b1b9ed56c83cceb6674bd97cb34 *html/changelogs/example.yml"
-  - tools/check_filedirs.sh tgstation.dme
-  - cd tgui && gulp && cd ..
-  - python tools/ss13_genchangelog.py html/changelog.html html/changelogs
-  - source $HOME/BYOND-${BYOND_MAJOR}.${BYOND_MINOR}/byond/bin/byondsetup
-  - bash dm.sh -M${DM_MAPFILE} tgstation.dme
+  - tools/travis/check_filedirs.sh tgstation.dme
+  - tools/travis/build_tools.sh || travis_terminate 1
+  - tools/travis/build_dependencies.sh || travis_terminate 1
+  - tools/travis/build_byond.sh
+

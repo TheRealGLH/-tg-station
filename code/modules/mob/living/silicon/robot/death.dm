@@ -1,13 +1,8 @@
-/mob/living/silicon/robot/gib(animation = 1)
-	..()
 
-/mob/living/silicon/robot/spawn_gibs()
-	robogibs(loc, viruses)
+/mob/living/silicon/robot/gib_animation()
+	new /obj/effect/temp_visual/gib_animation(loc, "gibbed-r")
 
-/mob/living/silicon/robot/gib_animation(animate)
-	..(animate, "gibbed-r")
-
-/mob/living/silicon/robot/dust(animation = 1)
+/mob/living/silicon/robot/dust(just_ash, drop_items, force)
 	if(mmi)
 		qdel(mmi)
 	..()
@@ -15,25 +10,25 @@
 /mob/living/silicon/robot/spawn_dust()
 	new /obj/effect/decal/remains/robot(loc)
 
-/mob/living/silicon/robot/dust_animation(animate)
-	..(animate, "dust-r")
+/mob/living/silicon/robot/dust_animation()
+	new /obj/effect/temp_visual/dust_animation(loc, "dust-r")
 
 /mob/living/silicon/robot/death(gibbed)
 	if(stat == DEAD)
 		return
-	if(!gibbed)
-		emote("deathgasp")
-	locked = 0 //unlock cover
-	stat = DEAD
-	update_canmove()
-	if(camera && camera.status)
-		camera.toggle_cam(src,0)
+
+	. = ..()
+
+	locked = FALSE //unlock cover
+
+	if(!QDELETED(builtInCamera) && builtInCamera.status)
+		builtInCamera.toggle_cam(src,0)
 	update_headlamp(1) //So borg lights are disabled when killed.
 
 	uneq_all() // particularly to ensure sight modes are cleared
 
 	update_icons()
 
-	sql_report_cyborg_death(src)
+	unbuckle_all_mobs(TRUE)
 
-	return ..()
+	SSblackbox.ReportDeath(src)

@@ -1,7 +1,5 @@
 /obj/effect/overlay
 	name = "overlay"
-	unacidable = 1
-	var/i_attached//Added for possible image attachments to objects. For hallucinations and the like.
 
 /obj/effect/overlay/singularity_act()
 	return
@@ -15,120 +13,41 @@
 	icon_state="b_beam"
 	var/atom/BeamSource
 
-/obj/effect/overlay/beam/New()
-	..()
-	spawn(10) qdel(src)
-
-/obj/effect/overlay/temp
-	icon_state = "nothing"
-	anchored = 1
-	layer = 4.1
-	mouse_opacity = 0
-	var/duration = 10
-	var/randomdir = 1
-
-/obj/effect/overlay/temp/Destroy()
-	..()
-	return QDEL_HINT_PUTINPOOL
-
-/obj/effect/overlay/temp/New()
-	if(randomdir)
-		dir = pick(cardinal)
-	flick("[icon_state]", src) //Because we might be pulling it from a pool, flick whatever icon it uses so it starts at the start of the icon's animation.
-	spawn(duration)
-		qdel(src)
-
-/obj/effect/overlay/temp/heal //color is white by default, set to whatever is needed
-	name = "healing glow"
-	icon_state = "heal"
-	duration = 15
-
-/obj/effect/overlay/temp/heal/New()
-	..()
-	pixel_x = rand(-12, 12)
-	pixel_y = rand(-9, 0)
-
-/obj/effect/overlay/temp/explosion
-	name = "explosion"
-	icon = 'icons/effects/96x96.dmi'
-	icon_state = "explosion"
-	pixel_x = -32
-	pixel_y = -32
-	duration = 8
-
-/obj/effect/overlay/temp/blob
-	name = "blob"
-	icon_state = "blob_attack"
-	alpha = 140
-	randomdir = 0
-	duration = 6
-
-/obj/effect/overlay/temp/guardian
-	randomdir = 0
-
-/obj/effect/overlay/temp/guardian/phase
-	duration = 5
-	icon_state = "phasein"
-
-/obj/effect/overlay/temp/guardian/phase/out
-	icon_state = "phaseout"
-
-/obj/effect/overlay/temp/cult
-	randomdir = 0
-	duration = 10
-
-/obj/effect/overlay/temp/cult/sac
-	name = "maw of Nar-Sie"
-	icon_state = "sacconsume"
-
-/obj/effect/overlay/temp/cult/turf
-	name = "unholy glow"
-	icon_state = "wallglow"
-	layer = TURF_LAYER + 0.07
-
-/obj/effect/overlay/temp/cult/turf/floor
-	icon_state = "floorglow"
-	duration = 5
-
-
-/obj/effect/overlay/temp/revenant
-	name = "spooky lights"
-	icon_state = "purplesparkles"
-
-/obj/effect/overlay/temp/revenant/cracks
-	name = "glowing cracks"
-	icon_state = "purplecrack"
-	duration = 6
-
-
-/obj/effect/overlay/temp/emp
-	name = "emp sparks"
-	icon_state = "empdisable"
-
-/obj/effect/overlay/temp/emp/pulse
-	name = "emp pulse"
-	icon_state = "emp pulse"
-	duration = 8
-	randomdir = 0
-
+/obj/effect/overlay/beam/Initialize()
+	. = ..()
+	QDEL_IN(src, 10)
 
 /obj/effect/overlay/palmtree_r
-	name = "Palm tree"
+	name = "palm tree"
 	icon = 'icons/misc/beach2.dmi'
 	icon_state = "palm1"
-	density = 1
-	layer = 5
-	anchored = 1
+	density = TRUE
+	layer = WALL_OBJ_LAYER
+	anchored = TRUE
 
 /obj/effect/overlay/palmtree_l
-	name = "Palm tree"
+	name = "palm tree"
 	icon = 'icons/misc/beach2.dmi'
 	icon_state = "palm2"
-	density = 1
-	layer = 5
-	anchored = 1
+	density = TRUE
+	layer = WALL_OBJ_LAYER
+	anchored = TRUE
 
 /obj/effect/overlay/coconut
-	name = "Coconuts"
+	gender = PLURAL
+	name = "coconuts"
 	icon = 'icons/misc/beach.dmi'
 	icon_state = "coconuts"
+
+/obj/effect/overlay/sparkles
+	gender = PLURAL
+	name = "sparkles"
+	icon = 'icons/effects/effects.dmi'
+	icon_state = "shieldsparkles"
+	anchored = TRUE
+
+/obj/effect/overlay/vis
+	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
+	anchored = TRUE
+	var/unused = 0 //When detected to be unused it gets set to world.time, after a while it gets removed
+	var/cache_expiration = 2 MINUTES // overlays which go unused for 2 minutes get cleaned up

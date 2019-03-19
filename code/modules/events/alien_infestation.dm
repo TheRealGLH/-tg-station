@@ -1,52 +1,68 @@
 /datum/round_event_control/alien_infestation
 	name = "Alien Infestation"
-	typepath = /datum/round_event/alien_infestation
+	typepath = /datum/round_event/ghost_role/alien_infestation
 	weight = 5
-	max_occurrences = 1
 
-/datum/round_event/alien_infestation
+	min_players = 10
+
+/datum/round_event_control/alien_infestation/canSpawnEvent()
+	. = ..()
+	if(!.)
+		return .
+
+	for(var/mob/living/carbon/alien/A in GLOB.player_list)
+		if(A.stat != DEAD)
+			return FALSE
+
+/datum/round_event/ghost_role/alien_infestation
 	announceWhen	= 400
 
+	minimum_required = 1
+	role_name = "alien larva"
+
+	// 50% chance of being incremented by one
 	var/spawncount = 1
-	var/successSpawn = 0	//So we don't make a command report if nothing gets spawned.
+	fakeable = TRUE
 
 
-/datum/round_event/alien_infestation/setup()
+/datum/round_event/ghost_role/alien_infestation/setup()
 	announceWhen = rand(announceWhen, announceWhen + 50)
-	spawncount = rand(1, 2)
+	if(prob(50))
+		spawncount++
 
-/datum/round_event/alien_infestation/kill()
-	if(!successSpawn && control)
-		control.occurrences--
-	return ..()
+/datum/round_event/ghost_role/alien_infestation/announce(fake)
+	var/living_aliens = FALSE
+	for(var/mob/living/carbon/alien/A in GLOB.player_list)
+		if(A.stat != DEAD)
+			living_aliens = TRUE
 
-/datum/round_event/alien_infestation/announce()
-	if(successSpawn)
-		priority_announce("Unidentified lifesigns detected coming aboard [station_name()]. Secure any exterior access, including ducting and ventilation.", "Lifesign Alert", 'sound/AI/aliens.ogg')
+	if(living_aliens || fake)
+		priority_announce("Unidentified lifesigns detected coming aboard [station_name()]. Secure any exterior access, including ducting and ventilation.", "Lifesign Alert", 'sound/ai/aliens.ogg')
 
 
-/datum/round_event/alien_infestation/start()
-	get_alien()
-
-/datum/round_event/alien_infestation/proc/get_alien(end_if_fail = 0)
+/datum/round_event/ghost_role/alien_infestation/spawn_role()
 	var/list/vents = list()
-	for(var/obj/machinery/atmospherics/components/unary/vent_pump/temp_vent in machines)
-		if(qdeleted(temp_vent))
+	for(var/obj/machinery/atmospherics/components/unary/vent_pump/temp_vent in GLOB.machines)
+		if(QDELETED(temp_vent))
 			continue
-		if(temp_vent.loc.z == ZLEVEL_STATION && !temp_vent.welded)
-			var/datum/pipeline/temp_vent_parent = temp_vent.PARENT1
-			if(temp_vent_parent.other_atmosmch.len > 20)	//Stops Aliens getting stuck in small networks. See: Security, Virology
+		if(is_station_level(temp_vent.loc.z) && !temp_vent.welded)
+			var/datum/pipeline/temp_vent_parent = temp_vent.parents[1]
+			if(!temp_vent_parent)
+				continue//no parent vent
+			//Stops Aliens getting stuck in small networks.
+			//See: Security, Virology
+			if(temp_vent_parent.other_atmosmch.len > 20)
 				vents += temp_vent
 
 	if(!vents.len)
 		message_admins("An event attempted to spawn an alien but no suitable vents were found. Shutting down.")
-		return kill()
+		return MAP_ERROR
 
-	var/list/candidates = get_candidates(ROLE_ALIEN, ALIEN_AFK_BRACKET, "alien candidate")
+	var/list/candidates = get_candidates(ROLE_ALIEN, null, ROLE_ALIEN)
+
 	if(!candidates.len)
-		if(end_if_fail)
-			return 0
-		return find_alien()
+		return NOT_ENOUGH_PLAYERS
+
 	while(spawncount > 0 && vents.len && candidates.len)
 		var/obj/vent = pick_n_take(vents)
 		var/client/C = pick_n_take(candidates)
@@ -55,17 +71,8 @@
 		new_xeno.key = C.key
 
 		spawncount--
-		successSpawn = 1
-		message_admins("[new_xeno.key] has been made into an alien by an event.")
-		log_game("[new_xeno.key] was spawned as an alien by an event.")
-	if(successSpawn)
-		return 1
+		message_admins("[ADMIN_LOOKUPFLW(new_xeno)] has been made into an alien by an event.")
+		log_game("[key_name(new_xeno)] was spawned as an alien by an event.")
+		spawned_mobs += new_xeno
 
-/datum/round_event/alien_infestation/proc/find_alien()
-	message_admins("Event attempted to spawn an alien but no candidates were available. Will try again momentarily...")
-	spawn(50)
-		if(get_alien(1))
-			message_admins("Situation has been resolved")
-			return 0
-		message_admins("Unfortunately, no candidates were available for becoming an alien. Shutting down.")
-	return kill()
+	return SUCCESSFUL_SPAWN

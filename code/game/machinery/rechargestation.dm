@@ -1,39 +1,39 @@
 /obj/machinery/recharge_station
 	name = "cyborg recharging station"
+	desc = "This device recharges cyborgs and resupplies them with materials."
 	icon = 'icons/obj/objects.dmi'
 	icon_state = "borgcharger0"
-	density = 0
-	anchored = 1
-	use_power = 1
+	density = FALSE
+	use_power = IDLE_POWER_USE
 	idle_power_usage = 5
 	active_power_usage = 1000
-	var/circuitboard = "/obj/item/weapon/circuitboard/cyborgrecharger"
-	req_access = list(access_robotics)
+	req_access = list(ACCESS_ROBOTICS)
+	state_open = TRUE
+	circuit = /obj/item/circuitboard/machine/cyborgrecharger
+	occupant_typecache = list(/mob/living/silicon/robot, /mob/living/carbon/human)
 	var/recharge_speed
 	var/repairs
-	state_open = 1
 
-/obj/machinery/recharge_station/New()
-	..()
-	component_parts = list()
-	component_parts += new /obj/item/weapon/circuitboard/cyborgrecharger(null)
-	component_parts += new /obj/item/weapon/stock_parts/capacitor(null)
-	component_parts += new /obj/item/weapon/stock_parts/capacitor(null)
-	component_parts += new /obj/item/weapon/stock_parts/manipulator(null)
-	component_parts += new /obj/item/weapon/stock_parts/cell/high(null)
-	RefreshParts()
+/obj/machinery/recharge_station/Initialize()
+	. = ..()
 	update_icon()
 
 /obj/machinery/recharge_station/RefreshParts()
 	recharge_speed = 0
 	repairs = 0
-	for(var/obj/item/weapon/stock_parts/capacitor/C in component_parts)
+	for(var/obj/item/stock_parts/capacitor/C in component_parts)
 		recharge_speed += C.rating * 100
-	for(var/obj/item/weapon/stock_parts/manipulator/M in component_parts)
+	for(var/obj/item/stock_parts/manipulator/M in component_parts)
 		repairs += M.rating - 1
-	for(var/obj/item/weapon/stock_parts/cell/C in component_parts)
+	for(var/obj/item/stock_parts/cell/C in component_parts)
 		recharge_speed *= C.maxcharge / 10000
 
+/obj/machinery/recharge_station/examine(mob/user)
+	..()
+	if(in_range(user, src) || isobserver(user))
+		to_chat(user, "<span class='notice'>The status display reads: Recharging <b>[recharge_speed]J</b> per cycle.<span>")
+		if(repairs)
+			to_chat(user, "<span class='notice'>[src] has been upgraded to support automatic repairs.<span>")
 
 /obj/machinery/recharge_station/process()
 	if(!is_operational())
@@ -49,44 +49,28 @@
 	open_machine()
 
 /obj/machinery/recharge_station/emp_act(severity)
-	if(stat & (BROKEN|NOPOWER))
-		..(severity)
-		return
-	if(occupant)
-		occupant.emp_act(severity)
-	open_machine()
-	..(severity)
-
-/obj/machinery/recharge_station/ex_act(severity, target)
-	if(occupant)
-		open_machine()
-	..()
-
-/obj/machinery/recharge_station/attack_paw(mob/user)
-	return attack_hand(user)
-
-/obj/machinery/recharge_station/attack_ai(mob/user)
-	return attack_hand(user)
+	. = ..()
+	if(!(stat & (BROKEN|NOPOWER)))
+		if(occupant && !(. & EMP_PROTECT_CONTENTS))
+			occupant.emp_act(severity)
+		if (!(. & EMP_PROTECT_SELF))
+			open_machine()
 
 /obj/machinery/recharge_station/attackby(obj/item/P, mob/user, params)
 	if(state_open)
 		if(default_deconstruction_screwdriver(user, "borgdecon2", "borgcharger0", P))
 			return
 
-	if(exchange_parts(user, P))
-		return
-
 	if(default_pry_open(P))
 		return
 
-	default_deconstruction_crowbar(P)
-
-/obj/machinery/recharge_station/attack_hand(mob/user)
-	if(..(user,1,set_machine = 0))
+	if(default_deconstruction_crowbar(P))
 		return
+	return ..()
 
+/obj/machinery/recharge_station/interact(mob/user)
 	toggle_open()
-	add_fingerprint(user)
+	return TRUE
 
 /obj/machinery/recharge_station/proc/toggle_open()
 	if(state_open)
@@ -95,20 +79,16 @@
 		open_machine()
 
 /obj/machinery/recharge_station/open_machine()
-	..()
-	use_power = 1
+	. = ..()
+	if(iscyborg(occupant) || isethereal(occupant))
+		use_power = IDLE_POWER_USE
 
 /obj/machinery/recharge_station/close_machine()
-	if(!panel_open)
-		for(var/mob/living/silicon/robot/R in loc)
-			R.forceMove(src)
-			occupant = R
-			use_power = 2
-			add_fingerprint(R)
-			break
-		state_open = 0
-		density = 1
-		update_icon()
+	. = ..()
+	if(occupant)
+		if(iscyborg(occupant) || isethereal(occupant))
+			use_power = ACTIVE_POWER_USE
+		add_fingerprint(occupant)
 
 /obj/machinery/recharge_station/update_icon()
 	if(is_operational())
@@ -124,13 +104,20 @@
 	update_icon()
 
 /obj/machinery/recharge_station/proc/process_occupant()
-	if(occupant)
+	if(!occupant)
+		return
+	if(iscyborg(occupant))
 		var/mob/living/silicon/robot/R = occupant
 		restock_modules()
 		if(repairs)
-			R.heal_organ_damage(repairs, repairs - 1)
+			R.heal_bodypart_damage(repairs, repairs - 1)
 		if(R.cell)
 			R.cell.charge = min(R.cell.charge + recharge_speed, R.cell.maxcharge)
+	if(isethereal(occupant))
+		var/mob/living/carbon/human/H = occupant
+		var/datum/species/ethereal/E = H.dna?.species
+		if(E)
+			E.adjust_charge(recharge_speed / 70) //Around 3 per process if unupgraded
 
 /obj/machinery/recharge_station/proc/restock_modules()
 	if(occupant)

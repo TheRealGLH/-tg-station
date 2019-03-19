@@ -10,56 +10,39 @@
 	name = "telecommunication relay"
 	icon_state = "relay"
 	desc = "A mighty piece of hardware used to send massive amounts of data far away."
-	density = 1
-	anchored = 1
-	use_power = 1
+	density = TRUE
+	use_power = IDLE_POWER_USE
 	idle_power_usage = 30
-	machinetype = 8
-	//heatgen = 0
-	circuitboard = "/obj/item/weapon/circuitboard/telecomms/relay"
 	netspeed = 5
 	long_range_link = 1
+	circuit = /obj/item/circuitboard/machine/telecomms/relay
 	var/broadcasting = 1
 	var/receiving = 1
 
-/obj/machinery/telecomms/relay/receive_information(datum/signal/signal, obj/machinery/telecomms/machine_from)
+/obj/machinery/telecomms/relay/receive_information(datum/signal/subspace/signal, obj/machinery/telecomms/machine_from)
 	// Add our level and send it back
-	if(can_send(signal))
-		signal.data["level"] |= listening_level
+	var/turf/T = get_turf(src)
+	if(can_send(signal) && T)
+		signal.levels |= T.z
 
 // Checks to see if it can send/receive.
 
 /obj/machinery/telecomms/relay/proc/can(datum/signal/signal)
 	if(!on)
-		return 0
+		return FALSE
 	if(!is_freq_listening(signal))
-		return 0
-	return 1
+		return FALSE
+	return TRUE
 
 /obj/machinery/telecomms/relay/proc/can_send(datum/signal/signal)
 	if(!can(signal))
-		return 0
+		return FALSE
 	return broadcasting
 
 /obj/machinery/telecomms/relay/proc/can_receive(datum/signal/signal)
 	if(!can(signal))
-		return 0
+		return FALSE
 	return receiving
-
-/obj/machinery/telecomms/relay/New()
-	..()
-	component_parts = list()
-	component_parts += new /obj/item/weapon/circuitboard/telecomms/relay(null)
-	component_parts += new /obj/item/weapon/stock_parts/subspace/filter(null)
-	component_parts += new /obj/item/weapon/stock_parts/subspace/filter(null)
-	component_parts += new /obj/item/weapon/stock_parts/manipulator(null)
-	component_parts += new /obj/item/weapon/stock_parts/manipulator(null)
-	component_parts += new /obj/item/stack/cable_coil(null, 2)
-	RefreshParts()
-
-
-
-
 
 //Preset Relay
 
@@ -68,7 +51,6 @@
 
 /obj/machinery/telecomms/relay/preset/station
 	id = "Station Relay"
-	listening_level = 1
 	autolinkers = list("s_relay")
 
 /obj/machinery/telecomms/relay/preset/telecomms
@@ -82,5 +64,13 @@
 /obj/machinery/telecomms/relay/preset/ruskie
 	id = "Ruskie Relay"
 	hide = 1
-	toggled = 0
+	toggled = FALSE
 	autolinkers = list("r_relay")
+
+/obj/machinery/telecomms/relay/preset/reebe
+	name = "hierophant relay"
+	desc = "An arcane telecommunications relay that ingeniously combines bluespace technology with the Hierophant network to send and receive messages to and from Reebe."
+	id = "Hierophant Relay"
+	icon = 'icons/obj/clockwork_objects.dmi'
+	hide = TRUE
+	autolinkers = list("h_relay")

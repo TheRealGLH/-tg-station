@@ -1,8 +1,6 @@
 /obj/machinery/door/unpowered
-	var/locked = 0
 
-
-/obj/machinery/door/unpowered/Bumped(atom/AM)
+/obj/machinery/door/unpowered/Bumped(atom/movable/AM)
 	if(src.locked)
 		return
 	..()
@@ -10,10 +8,10 @@
 
 
 /obj/machinery/door/unpowered/attackby(obj/item/I, mob/user, params)
-	if(src.locked)
+	if(locked)
 		return
-	..()
-	return
+	else
+		return ..()
 
 /obj/machinery/door/unpowered/emag_act()
 	return
@@ -23,5 +21,5 @@
 	name = "door"
 	icon_state = "door1"
 	opacity = 1
-	density = 1
+	density = TRUE
 	explosion_block = 1
